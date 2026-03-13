@@ -1,0 +1,662 @@
+/* ===============================
+   FULL BACKGROUND – LOGO
+   =============================== */
+.round2-bg {
+  min-height: 100vh;
+  background: url("/logo.png") center/cover no-repeat;
+  padding: 120px 0 100px;
+  overflow-y: auto;
+}
+
+/* ===============================
+   GLASS CARD
+   =============================== */
+.round2-card {
+  width: 92%;
+  max-width: 1400px;
+  margin: auto;
+  padding: 40px;
+  border-radius: 26px;
+
+  background: rgba(10, 18, 40, 0.75);
+  backdrop-filter: none;
+  color: white;
+}
+
+/* ===============================
+   PAGE TITLE
+   =============================== */
+.qualifier-title {
+  font-size: 64px;
+  font-weight: 900;
+  text-align: center;
+  color: white;
+  margin-bottom: 40px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.round2-card h2 {
+  text-align: center;
+  margin-bottom: 40px;
+  letter-spacing: 2px;
+}
+
+.round2-card h3 {
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 25px;
+  letter-spacing: 1px;
+}
+
+/* ===============================
+   TEAM SECTION
+   =============================== */
+.team-section {
+  margin-bottom: 70px;
+}
+
+.team-title {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+  letter-spacing: 1px;
+}
+.header .extra-col {
+  justify-self: center;
+  text-align: center;
+}
+.header span:last-child,
+.qual-row span:last-child {
+  justify-self: center;
+  text-align: center;
+}
+.qualifier-grid.header {
+  column-gap: 0px;   /* 👈 reduce gap between titles */
+}
+
+/* ===============================
+   QUALIFIER TABLE
+   =============================== */
+
+/* ===== Glass Select (Qualifier Round 1 Subject) ===== */
+
+.subject-select {
+  width: 180px;
+  max-width: 220px;
+  height: 42px;
+  padding: 0 44px 0 18px;
+
+  border-radius: 999px;
+  border: 1px solid rgba(81, 136, 204, 0.3);
+
+  /* match card background color for seamless look */
+  background: #0f172abf !important;
+  backdrop-filter: none;
+
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  cursor: pointer;
+  transition: all 0.25s ease;
+  /* arrow image in same declaration to avoid later override */
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E"), none;
+  background-repeat: no-repeat;
+  background-position: right 16px center, center;
+  background-size: 14px, cover;
+}
+
+/* arrow handled in primary declaration above */
+/* Hover */
+.subject-select:hover {
+  border-color: rgba(100, 180, 255, 0.7);
+}
+
+/* Focus */
+.subject-select:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
+}
+
+/* Disabled */
+.subject-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* placeholder look for select when first option is shown */
+.subject-select option[disabled] {
+  color:rgba(100, 180, 255, 0.7);;
+}
+
+/* ===== SHARED GRID FOR HEADER + ROWS ===== */
+/* ===== QUALIFIER TABLE GRID ===== */
+/* Shared grid for header + rows */
+.qualifier-grid,
+.qual-row {
+  display: grid;
+  grid-template-columns: 0.3fr 0.6fr 1.0fr 0.6fr 0.4fr;
+  column-gap: 60px;
+  align-items: center;
+}
+
+.qualifier-grid > :nth-child(4) {
+  justify-self: center;
+}
+
+
+.qualifier-header {
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.qualifier-header .cell {
+  text-align: center;
+}
+
+.qualifier-header div {
+  text-align: center;
+}
+.qualifier-row {
+  margin-bottom: 18px;
+}
+
+.qualifier-row .name-cell {
+  text-align: left;
+}
+
+.qualifier-row div:not(.name-cell) {
+  text-align: center;
+}
+
+
+/* Header row */
+.qual-row.header {
+  margin-bottom: 18px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Each member row spacing */
+.qual-row {
+  margin-bottom: 0;   /* removed spacing for tabular look */
+}
+
+
+/* Member name */
+.member-name {
+  font-weight: 500;
+  justify-self: start;
+}
+
+/* ========== NEW TABLE STYLES ========== */
+.qualifier-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.qualifier-table th,
+.qualifier-table td {
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.qualifier-table th {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* left-align first column */
+.qualifier-table th:first-child,
+.qualifier-table td:first-child {
+  text-align: left;
+}
+
+/* make selects/input fill cell */
+.qualifier-table td select,
+.qualifier-table td input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* optional disabled row styling */
+.qualifier-table .row-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Subject select */
+.qual-row select {
+  padding: 8px 30px 8px 12px;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.qual-row select:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.6), 
+              0 0 25px rgba(37, 99, 235, 0.4),
+              inset 0 0 10px rgba(37, 99, 235, 0.2);
+}
+
+.qual-row select option {
+  background: rgba(15, 23, 42, 0.95);
+  color: white;
+  padding: 8px;
+}
+.qual-row span:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+/* All other cells centered */
+.qual-row > *:not(:first-child) {
+  text-align: center;
+}
+
+/* ===============================
+   CIRCLE GROUP
+   =============================== */
+.circle-group {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid white;
+  cursor: pointer;
+}
+
+.circle.active {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+/* ===============================
+   EXTRA SCORE INPUT
+   =============================== */
+/* EXTRA score input – OVAL */
+.qual-row input[type="number"] {
+  width: 90px;
+  height: 38px;
+  border-radius: 999px;           /* 👈 FULL OVAL */
+  padding: 0 14px;
+  text-align: center;
+
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 14px;
+
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.qual-row input[type="number"]:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+
+/* Remove increment/decrement arrows */
+.qual-row input[type="number"]::-webkit-outer-spin-button,
+.qual-row input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.qual-row input[type="number"] {
+  appearance: textfield; /* standard property for compatibility */
+  -moz-appearance: textfield;
+}
+/* Ensure Extra column content is centered under title */
+.qual-row input[type="number"] {
+  justify-self: center;   /* 👈 KEY FIX */
+}
+
+
+/* ===== coding scores modal ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: transparent;
+  backdrop-filter: none;
+  padding: 2rem;
+  border-radius: 0;
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-content .finish-btn.right {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+/* ===============================
+   TOTAL SCORE
+   =============================== */
+.total-score {
+  text-align: center;
+  font-weight: bold;
+  justify-self: center;   /* ✅ KEY FIX */
+}
+
+
+/* ===============================
+   FINISH BUTTON
+   =============================== */
+.finish-btn {
+  margin-top: 25px;
+  padding: 12px 30px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+.finish-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+}
+
+/* Disabled state */
+.finish-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===============================
+   TEAM TOTAL DISPLAY
+   =============================== */
+.team-total {
+  margin-top: 35px;        /* ✅ space before sentence */
+  text-align: center;
+  font-size: 1.4rem;       /* ✅ bigger */
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.team-title.left {
+  text-align: left;
+}
+
+.team-result {
+  margin-top: 16px;
+  font-size: 1rem;
+  color: #e5e7eb;
+}
+
+.qualifier-table.small {
+  max-width: 500px;
+}
+.qualifier-round2 {
+  margin-top: 80px;   /* space before heading */
+}
+
+.qualifier-round2-table {
+  margin-top: 30px;   /* space between heading and table */
+}
+.qualifier-summary-btn {
+  margin-top: 50px;
+  float: right;
+}
+.team-name-left {
+  text-align: left;
+}
+
+.qualifier-round2-title {
+  margin-top: 80px;
+  margin-bottom: 30px;
+  text-align: left;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.round2-table {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 25px;
+}
+
+.round-header,
+.round2-row {
+  display: grid;
+  grid-template-columns: 220px 160px;
+  align-items: center;
+}
+
+.round-header {
+  font-weight: bold;
+  opacity: 0.9;
+}
+
+.round2-row input {
+  width: 140px;
+}
+.qr2-header {
+  display: grid;
+  grid-template-columns: 200px 200px;
+  gap: 40px;
+  margin-bottom: 20px;
+}
+
+.qr2-header div:first-child {
+  text-align: left;   /* 👈 Team title left aligned */
+}
+
+.team-name {
+  text-align: left;   /* 👈 Team names left aligned */
+  font-weight: 500;
+}
+.qr2-score-input {
+  width: 160px;
+  height: 42px;
+
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  color: white;
+
+  padding: 0 16px;
+  font-size: 15px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+.qr2-score-input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 12px rgba(96, 165, 250, 0.3);
+}
+.qr2-row {
+  display: grid;
+  grid-template-columns: 200px 200px;
+  gap: 40px;
+  align-items: center;
+
+  margin-bottom: 18px;
+}
+
+
+/* Team title left aligned */
+
+/* ===== FIX EXTRA COLUMN OVERFLOW ===== */
+.extra-input {
+  width: 100%;
+  max-width: 140px;   /* 🔥 HARD LIMIT */
+  box-sizing: border-box;
+  justify-self: center;
+  margin: 0 auto;
+  display: block;
+  /* match card/qr2 input look */
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(96,165,250,0.3);
+  background: #ffffff0d;
+  color: #fff;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.extra-input:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 12px rgba(96, 165, 250, 0.3);
+}
+
+.header {
+  margin-bottom: 24px; /* space below titles */
+}
+
+.header span {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+.qualifier-grid > :nth-child(5) {
+  justify-self: center;
+  text-align: center;
+}
+.qualifier-grid > :nth-child(4) {
+  justify-self: center;
+}
+.qual-row > *:nth-child(1),
+.qualifier-grid.header > *:nth-child(1) {
+  grid-column: 1;
+  justify-self: start;
+}
+.qual-row > *:nth-child(2),
+.qualifier-grid.header > *:nth-child(2) {
+  grid-column: 2;
+  justify-self: center;
+}
+.qual-row > *:nth-child(3),
+.qualifier-grid.header > *:nth-child(3) {
+  grid-column: 3;
+  justify-self: center;
+}
+.qual-row > *:nth-child(4),
+.qualifier-grid.header > *:nth-child(4) {
+  grid-column: 4;
+  justify-self: center;
+}
+
+.extra-input {
+  width: 90px;
+}
+
+/* ===== coding scores modal ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: transparent;
+  backdrop-filter: none;
+  padding: 2rem;
+  border-radius: 0;
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-content .finish-btn.right {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.qual-row > *:nth-child(5),
+.qualifier-grid.header > *:nth-child(5) {
+  grid-column: 5;
+  justify-self: center;
+}
+
+
+/* table rules for coding modal */
+.modal-content table { width:100%; background:transparent; border-collapse:collapse; }
+.modal-content th, .modal-content td { padding:8px 12px; text-align:left; }
+.modal-content tr:not(:last-child) { border-bottom:1px solid rgba(255,255,255,0.2); }
+
+/* button grouping for qualifier round2 */
+.button-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 1.5rem auto 0;
+  justify-content: center; /* center within card */
+  max-width: 600px;
+}
+
+/* glass style button */
+.glass-btn { padding: 12px 30px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.12); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px); box-shadow: 0 0 10px rgba(255,255,255,0.2);} .glass-btn:hover:not(:disabled) { background: rgba(255,255,255,0.18); box-shadow: 0 0 20px rgba(255,255,255,0.3);}
+
+/* ensure action buttons share width (give high specificity to avoid override) */
+.round2-card .button-group button {
+  min-width: 160px !important;
+  text-align: center;
+  flex: 0 1 300px !important; /* fixed-ish width so they sit nicely */
+}
+
+/* coding page input */
+.coding-input { width:100%; height:42px; padding:0 14px; border-radius:999px; border:1px solid rgba(96,165,250,0.3) !important; background:#0f172abf !important; color:#fff; font-size:14px; font-weight:500; backdrop-filter: blur(10px);}
+.coding-input:focus { outline:none; border-color:#60a5fa !important; box-shadow:0 0 10px rgba(96,165,250,0.3) !important; }
+
+/* re-add select style for coding page */
+.coding-school-select { width:100% !important; height:42px; padding:0 14px; border-radius:999px; border:1px solid rgba(96,165,250,0.3); background:#0f172abf; color:#fff; font-size:14px; font-weight:500; appearance:none; backdrop-filter: blur(10px); }
+.coding-school-select option[disabled]{color:#aaa;}

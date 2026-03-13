@@ -1,0 +1,209 @@
+.round1-bg {
+  background: linear-gradient(135deg, #020617 0%, #0B1120 50%, #0F172A 100%);
+  min-height: 100vh;
+  padding: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.round1-card {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(18px);
+  padding: 2rem;
+  border-radius: 20px;
+  max-width: 1100px;
+  width: 100%;
+  box-shadow:
+    0 0 30px rgba(59, 130, 246, 0.15),
+    0 25px 50px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  color: #f0e2e6;
+}
+
+.knockout-title {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+/* replace grid with semantic table for round 1 scores */
+.round-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+  table-layout: fixed; /* keep columns equal width */
+}
+
+.round-table th,
+.round-table td {
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  padding: 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.round-table th.team,
+.round-table td.team {
+  text-align: left;
+}
+
+.round-table th {
+  background: rgba(15, 23, 42, 0.5);
+  font-weight: bold;
+}
+
+/* keep circle groups centered inside their cells */
+.circle-group {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.total {
+  font-weight: bold;
+  text-align: center;
+}
+
+.circle-r1 {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.circle-r1.active {
+  background: #34d399;
+  border-color: #34d399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
+}
+
+.total {
+  font-weight: bold;
+  text-align: center;
+}
+
+.left-actions {
+  margin-top: 1rem;
+}
+
+.finish-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.finish-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+}
+
+.finish-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.section-gap {
+  margin-top: 2rem;
+}
+
+/* modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 1.5rem;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.2), 0 25px 50px rgba(0, 0, 0, 0.5);
+  color: #e2e8f0;
+  max-height: 90%;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #e2e8f0;
+  padding: 4px 10px;
+  transition: all 0.3s ease;
+}
+.modal-close:hover {
+  background: rgba(248, 113, 113, 0.3);
+  border-color: #f87171;
+}
+
+.round2-table {
+  margin-top: 1rem;
+  /* constrain and center the table container itself */
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* use table for round2 as well */
+.round2-table table {
+  /* fill the container width to align header/body uniformly */
+  width: 100%;
+  border-collapse: collapse;
+  /* let columns follow the <colgroup> proportions rather than forcing equal width */
+}
+
+.round2-table th,
+.round2-table td {
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: middle;
+  /* allow long names to wrap */
+  word-break: break-word;
+}
+
+.round2-table th {
+  background: rgba(15, 23, 42, 0.5);
+  font-weight: bold;
+}
+
+.round2-table input {
+  width: 100%;
+  box-sizing: border-box;
+  /* blue theme background and light text instead of white */
+  background: rgba(59, 130, 246, 0.1);
+  color: #e2e8f0;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 4px;
+  padding: 0.25rem;
+}
+
+.team-name {
+  font-weight: 500;
+}
