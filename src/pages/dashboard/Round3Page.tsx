@@ -160,6 +160,7 @@ const Round3Page = () => {
   const [team1Selected, setTeam1Selected] = useState<string[]>(Array(ROWS).fill(""));
   const [team2Selected, setTeam2Selected] = useState<string[]>(Array(ROWS).fill(""));
   const [team3Selected, setTeam3Selected] = useState<string[]>(Array(ROWS).fill(""));
+  const [expandedBuzzerTeam, setExpandedBuzzerTeam] = useState<1 | 2 | 3 | null>(1);
 
   const toggleCircle = (team: 1 | 2 | 3, r: number, c: number) => {
     if (finalFinished) return;
@@ -402,121 +403,64 @@ const Round3Page = () => {
         <h3 className="round-title">Buzzer Round</h3>
 
 <div className="buzzer-container">
+  {[team1, team2, team3].map((team, teamIndex) => {
+    const teamNo = (teamIndex + 1) as 1 | 2 | 3;
+    const selected = teamNo === 1 ? team1Selected : teamNo === 2 ? team2Selected : team3Selected;
+    const setSelected = teamNo === 1 ? setTeam1Selected : teamNo === 2 ? setTeam2Selected : setTeam3Selected;
+    const circles = teamNo === 1 ? team1Circles : teamNo === 2 ? team2Circles : team3Circles;
+    const isExpanded = expandedBuzzerTeam === teamNo;
 
-  {/* TEAM 1 */}
-  <div className="buzzer-team">
-    <div className="buzzer-column">
+    return (
+      <div key={team.id} className="buzzer-team buzzer-accordion-item">
+        <button
+          type="button"
+          className={`buzzer-team-toggle ${isExpanded ? "expanded" : ""}`}
+          onClick={() => setExpandedBuzzerTeam(isExpanded ? null : teamNo)}
+        >
+          <span>{team.name}</span>
+          <span className="buzzer-team-toggle-icon">{isExpanded ? "-" : "+"}</span>
+        </button>
 
-      <div className="buzzer-team-name">{team1.name}</div>
+        {isExpanded && (
+          <div className="buzzer-column">
+            {Array.from({ length: ROWS }).map((_, r) => (
+              <div key={r} className="buzzer-row">
+                <select
+                  className="glass-select"
+                  value={selected[r]}
+                  onChange={e => {
+                    const copy = [...selected];
+                    copy[r] = e.target.value;
+                    setSelected(copy);
+                  }}
+                >
+                  <option value="" disabled hidden style={{ color: "#0f172a", backgroundColor: "#f8fafc" }}>
+                    Select member
+                  </option>
+                  {team.members.filter(m => m.trim().length > 0).map(m => (
+                    <option key={m} value={m} style={{ color: "#0f172a", backgroundColor: "#f8fafc" }}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
 
-      {Array.from({ length: ROWS }).map((_, r) => (
-        <div key={r} className="buzzer-row">
-          <select
-            className="glass-select"
-            value={team1Selected[r]}
-            onChange={e => {
-              const copy = [...team1Selected];
-              copy[r] = e.target.value;
-              setTeam1Selected(copy);
-            }}
-          >
-            <option value="">Select {team1.name} Member</option>
-            {team1.members.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-
-          <div className="circle-row">
-            {team1Circles[r].map((c, i) => (
-              <div
-                key={i}
-                className={`buzzer-circle ${c}`}
-                onClick={() => toggleCircle(1, r, i)}
-                onDoubleClick={() => markWrong(1, r, i)}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-
-  {/* TEAM 2 */}
-  <div className="buzzer-team">
-    <div className="buzzer-column">
-
-      <div className="buzzer-team-name">{team2.name}</div>
-
-      {Array.from({ length: ROWS }).map((_, r) => (
-        <div key={r} className="buzzer-row">
-          <select
-            className="glass-select"
-            value={team2Selected[r]}
-            onChange={e => {
-              const copy = [...team2Selected];
-              copy[r] = e.target.value;
-              setTeam2Selected(copy);
-            }}
-          >
-            <option value="">Select {team2.name} Member</option>
-            {team2.members.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-
-          <div className="circle-row">
-            {team2Circles[r].map((c, i) => (
-              <div
-                key={i}
-                className={`buzzer-circle ${c}`}
-                onClick={() => toggleCircle(2, r, i)}
-                onDoubleClick={() => markWrong(2, r, i)}
-              />
+                <div className="circle-row">
+                  {circles[r].map((c, i) => (
+                    <div
+                      key={i}
+                      className={`buzzer-circle ${c}`}
+                      onClick={() => toggleCircle(teamNo, r, i)}
+                      onDoubleClick={() => markWrong(teamNo, r, i)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        </div>
-      ))}
-    </div>
-  </div>
-
-  {team3 && (
-    <div className="buzzer-team">
-      <div className="buzzer-column">
-
-        <div className="buzzer-team-name">{team3.name}</div>
-
-        {Array.from({ length: ROWS }).map((_, r) => (
-          <div key={r} className="buzzer-row">
-            <select
-              className="glass-select"
-              value={team3Selected[r]}
-              onChange={e => {
-                const copy = [...team3Selected];
-                copy[r] = e.target.value;
-                setTeam3Selected(copy);
-              }}
-            >
-              <option value="">Select {team3.name} Member</option>
-              {team3.members.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-
-            <div className="circle-row">
-              {team3Circles[r].map((c, i) => (
-                <div
-                  key={i}
-                  className={`buzzer-circle ${c}`}
-                  onClick={() => toggleCircle(3, r, i)}
-                  onDoubleClick={() => markWrong(3, r, i)}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+        )}
       </div>
-    </div>
-  )}
+    );
+  })}
 
 </div>
 
