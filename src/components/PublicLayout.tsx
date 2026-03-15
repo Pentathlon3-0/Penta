@@ -35,7 +35,10 @@ export default function PublicLayout() {
               <Link to="/dichotomous"><TreePine className="mr-1.5 h-4 w-4" /> Dichotomous</Link>
             </Button>
             <Button variant={isActive("/password") ? "default" : "ghost"} size="sm" asChild>
-              <Link to="/password">🔐 Password</Link>
+              <Link to="/password" className="inline-flex items-center gap-1.5">
+                <span className="leading-none">💡</span>
+                <span>Clever Minds</span>
+              </Link>
             </Button>
             
           </nav>
