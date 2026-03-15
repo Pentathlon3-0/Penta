@@ -10,15 +10,17 @@ import { Pencil, Trash2, Check } from "lucide-react";
 export default function QuizAdminPage() {
   const [quiz1, setQuiz1] = useState(false);
   const [quiz2, setQuiz2] = useState(false);
+  const [activeSchool, setActiveSchool] = useState<number>(1);
   const [loading, setLoading] = useState(true);
 
   // questions stored in new table
-  type QuizRow = { id: number; quiz_name: string; qa: any };
+  type QuizRow = { id: number; quiz_name: string; qa: any; school_id: number };
   const [questions, setQuestions] = useState<QuizRow[]>([]);
 
   // form state for new/edit
   const [editId, setEditId] = useState<number | null>(null);
   const [formQuizName, setFormQuizName] = useState("quiz1");
+  const [formSchoolId, setFormSchoolId] = useState<number>(1);
   // structured fields rather than raw JSON
   const [formQuestion, setFormQuestion] = useState("");
   const [optionA, setOptionA] = useState("");
@@ -33,7 +35,7 @@ export default function QuizAdminPage() {
     const load = async () => {
       const { data, error } = await (supabase as any)
         .from("quiz_status")
-        .select("quiz1_enabled,quiz2_enabled")
+        .select("quiz1_enabled,quiz2_enabled,active_school_id")
         .eq("id", "1")
         .single();
       if (error) {
@@ -41,6 +43,7 @@ export default function QuizAdminPage() {
       } else if (data) {
         setQuiz1(data.quiz1_enabled);
         setQuiz2(data.quiz2_enabled);
+        setActiveSchool(data.active_school_id || 1);
       }
       setLoading(false);
       await fetchQuestions();
@@ -48,18 +51,33 @@ export default function QuizAdminPage() {
     load();
   }, []);
 
-  const update = async (field: "quiz1_enabled" | "quiz2_enabled", value: boolean) => {
+  const updateBoth = async (value: boolean) => {
     setLoading(true);
     const { error } = await (supabase as any)
       .from("quiz_status")
-      .update({ [field]: value, updated_at: new Date().toISOString() })
+      .update({ quiz1_enabled: value, quiz2_enabled: value, updated_at: new Date().toISOString() })
       .eq("id", "1");
     if (error) {
       toast.error("Update failed");
     } else {
-      toast.success("Status updated");
-      if (field === "quiz1_enabled") setQuiz1(value);
-      else setQuiz2(value);
+      toast.success("Quizzes status updated");
+      setQuiz1(value);
+      setQuiz2(value);
+    }
+    setLoading(false);
+  };
+
+  const updateActiveSchool = async (schoolId: number) => {
+    setLoading(true);
+    const { error } = await (supabase as any)
+      .from("quiz_status")
+      .update({ active_school_id: schoolId, updated_at: new Date().toISOString() })
+      .eq("id", "1");
+    if (error) {
+      toast.error("Failed to update active school");
+    } else {
+      toast.success(`Active school set to School ${schoolId}`);
+      setActiveSchool(schoolId);
     }
     setLoading(false);
   };
@@ -67,7 +85,7 @@ export default function QuizAdminPage() {
   const fetchQuestions = async () => {
     const { data, error } = await (supabase as any)
       .from("quiz_questions")
-      .select("id,quiz_name,qa")
+      .select("id,quiz_name,qa,school_id")
       .order("id", { ascending: true });
     if (error) {
       toast.error("Unable to load questions");
@@ -89,19 +107,20 @@ export default function QuizAdminPage() {
       if (editId === null) {
         const { data, error } = await (supabase as any)
           .from("quiz_questions")
-          .insert([{ quiz_name: formQuizName, qa: qaObj }])
+          .insert([{ quiz_name: formQuizName, school_id: formSchoolId, qa: qaObj }])
           .select();
         if (error) throw error;
         toast.success("Question added");
       } else {
         const { error } = await (supabase as any)
           .from("quiz_questions")
-          .update({ quiz_name: formQuizName, qa: qaObj, updated_at: new Date().toISOString() })
+          .update({ quiz_name: formQuizName, school_id: formSchoolId, qa: qaObj, updated_at: new Date().toISOString() })
           .eq("id", editId);
         if (error) throw error;
         toast.success("Question updated");
       }
       setFormQuizName("quiz1");
+      setFormSchoolId(1);
       setFormQuestion("");
       setOptionA("");
       setOptionB("");
@@ -121,6 +140,7 @@ export default function QuizAdminPage() {
     setEditId(row.id);
     setShowForm(false); // Hide the global add form if it was open
     setFormQuizName(row.quiz_name);
+    setFormSchoolId(row.school_id || 1);
     // populate structured fields
     const qa = row.qa || {};
     setFormQuestion(qa.question || "");
@@ -147,16 +167,31 @@ export default function QuizAdminPage() {
 
   const renderForm = () => (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="block text-sm font-medium">Quiz Name</label>
-        <select
-          value={formQuizName}
-          onChange={e => setFormQuizName(e.target.value)}
-          className="input bg-muted w-full p-2 rounded-md"
-        >
-          <option value="quiz1">quiz1</option>
-          <option value="quiz2">quiz2</option>
-        </select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Quiz Name</label>
+          <select
+            value={formQuizName}
+            onChange={e => setFormQuizName(e.target.value)}
+            className="input bg-muted w-full p-2 rounded-md"
+          >
+            <option value="quiz1">quiz1</option>
+            <option value="quiz2">quiz2</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">School / Set ID</label>
+          <select
+            value={formSchoolId}
+            onChange={e => setFormSchoolId(parseInt(e.target.value))}
+            className="input bg-muted w-full p-2 rounded-md"
+          >
+            {[1, 2, 3, 4, 5, 6].map(num => (
+              <option key={num} value={num}>School {num}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -203,6 +238,7 @@ export default function QuizAdminPage() {
           onClick={() => {
             setEditId(null);
             setFormQuizName("quiz1");
+            setFormSchoolId(1);
             setFormQuestion("");
             setOptionA("");
             setOptionB("");
@@ -223,20 +259,25 @@ export default function QuizAdminPage() {
       <h2 className="text-2xl font-bold">Quiz Configuration</h2>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <span>Quiz 1 enabled</span>
+          <span>Enable Both Quizzes</span>
           <Switch
-            checked={quiz1}
-            onCheckedChange={checked => update("quiz1_enabled", checked)}
+            checked={quiz1 && quiz2}
+            onCheckedChange={checked => updateBoth(checked)}
             disabled={loading}
           />
         </div>
         <div className="flex items-center justify-between">
-          <span>Quiz 2 enabled</span>
-          <Switch
-            checked={quiz2}
-            onCheckedChange={checked => update("quiz2_enabled", checked)}
+          <span>Active School</span>
+          <select
+            value={activeSchool}
+            onChange={e => updateActiveSchool(parseInt(e.target.value))}
+            className="input bg-muted p-2 rounded-md"
             disabled={loading}
-          />
+          >
+            {[1, 2, 3, 4, 5, 6].map(num => (
+              <option key={num} value={num}>School {num}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -248,6 +289,7 @@ export default function QuizAdminPage() {
             <Button onClick={() => {
               setEditId(null);
               setFormQuizName("quiz1");
+              setFormSchoolId(1);
               setFormQuestion("");
               setOptionA("");
               setOptionB("");
@@ -304,9 +346,14 @@ export default function QuizAdminPage() {
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6 gap-4">
                       <div className="flex items-center gap-3">
                         <span className="text-xl font-bold text-white">Q{index + 1}.</span>
-                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 rounded text-sm font-medium border border-amber-500/20">
-                          {q.quiz_name}
-                        </span>
+                        <div className="flex gap-2">
+                          <span className="px-3 py-1 bg-amber-500/10 text-amber-500 rounded text-sm font-medium border border-amber-500/20">
+                            {q.quiz_name}
+                          </span>
+                          <span className="px-3 py-1 bg-purple-500/10 text-purple-400 rounded text-sm font-medium border border-purple-500/20">
+                            School {q.school_id || 1}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button 

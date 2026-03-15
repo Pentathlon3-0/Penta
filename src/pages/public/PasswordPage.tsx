@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import "../../Styles/PasswordPage.css";
 
+import { Check } from "lucide-react";
+
 // quiz data will be loaded from the database table `quiz_questions`.
 // each row stores a JSON object in `qa` with at least the following shape:
 // {
@@ -112,19 +114,23 @@ export default function PasswordPage() {
       // load status flags
       const { data } = await (supabase as any)
         .from("quiz_status")
-        .select("quiz1_enabled, quiz2_enabled")
+        .select("quiz1_enabled, quiz2_enabled, active_school_id")
         .eq("id", "1")
         .single();
+      
+      let activeSchoolId = 1;
       if (data) {
         setQuiz1Enabled(data.quiz1_enabled);
         setQuiz2Enabled(data.quiz2_enabled);
+        activeSchoolId = data.active_school_id || 1;
       }
 
-      // fetch the questions for both quizzes
+      // fetch the questions for both quizzes filtered by active_school_id
       const { data: q1 } = await (supabase as any)
         .from("quiz_questions")
         .select("qa")
         .eq("quiz_name", "quiz1")
+        .eq("school_id", activeSchoolId)
         .order("id", { ascending: true });
       if (q1) setQuiz1(q1.map((r: any) => r.qa));
 
@@ -132,6 +138,7 @@ export default function PasswordPage() {
         .from("quiz_questions")
         .select("qa")
         .eq("quiz_name", "quiz2")
+        .eq("school_id", activeSchoolId)
         .order("id", { ascending: true });
       if (q2) setQuiz2(q2.map((r: any) => r.qa));
     };
@@ -165,8 +172,13 @@ export default function PasswordPage() {
   const handleSubmitQuiz1 = () => {
     let correct = 0;
     quiz1.forEach((q, idx) => {
-      const expected = (q.answer || "").toString().trim().toLowerCase();
-      if (answers1[idx].trim().toLowerCase() === expected) {
+      let expected = (q.answer || "").toString().trim().toLowerCase();
+      if (expected === "1" || expected === "option_a" || expected === q.option_a?.toLowerCase()) expected = "a";
+      if (expected === "2" || expected === "option_b" || expected === q.option_b?.toLowerCase()) expected = "b";
+      if (expected === "3" || expected === "option_c" || expected === q.option_c?.toLowerCase()) expected = "c";
+      if (expected === "4" || expected === "option_d" || expected === q.option_d?.toLowerCase()) expected = "d";
+
+      if ((answers1[idx] || "").trim().toLowerCase() === expected) {
         correct++;
       }
     });
@@ -221,29 +233,65 @@ export default function PasswordPage() {
 
   const renderQuiz1 = () => (
     <div ref={quiz1Ref} className="mt-8 flex justify-center">
-      <Card className="max-w-lg w-full mx-auto">
+      <Card className="max-w-xl w-full mx-auto bg-[#0B1120] text-white border-muted/30">
         <CardHeader>
-          <CardTitle>Photographic Memory</CardTitle>
+          <CardTitle className="text-2xl text-center pb-4 border-b border-muted/20">Photographic Memory</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-8 pt-6">
           {quiz1.map((q, idx) => (
-            <div key={idx} className="space-y-1">
-              <label>{q.question}</label>
-              {q.option_a && <div className="text-sm pl-4">a. {q.option_a}</div>}
-              {q.option_b && <div className="text-sm pl-4">b. {q.option_b}</div>}
-              {q.option_c && <div className="text-sm pl-4">c. {q.option_c}</div>}
-              {q.option_d && <div className="text-sm pl-4">d. {q.option_d}</div>}
-              <Input
-                value={answers1[idx] ?? ""}
-                onChange={e => {
-                  const copy = [...answers1];
-                  copy[idx] = e.target.value;
-                  setAnswers1(copy);
-                }}
-              />
+            <div key={idx} className="space-y-4">
+              <label className="font-medium text-lg lg:text-xl text-white mb-2 block">{idx + 1}. {q.question}</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: "a", label: "A", text: q.option_a },
+                  { key: "b", label: "B", text: q.option_b },
+                  { key: "c", label: "C", text: q.option_c },
+                  { key: "d", label: "D", text: q.option_d },
+                ].map(opt => {
+                  if (!opt.text) return null;
+                  const isSelected = answers1[idx] === opt.key;
+                  return (
+                    <div
+                      key={opt.key}
+                      onClick={() => {
+                        const copy = [...answers1];
+                        copy[idx] = opt.key;
+                        setAnswers1(copy);
+                      }}
+                      className={`p-3 sm:p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all duration-200 ${
+                        isSelected 
+                          ? "bg-green-950/40 border border-green-900/50 shadow-[0_0_15px_rgba(20,83,45,0.2)]" 
+                          : "bg-teal-950/20 border border-transparent hover:bg-teal-900/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <span
+                          className={`flex justify-center items-center w-8 h-8 rounded-lg font-bold transition-colors ${
+                            isSelected
+                              ? "bg-teal-700 text-white"
+                              : "bg-teal-900/40 text-teal-300"
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                        <span className={`text-[15px] font-medium ${isSelected ? "text-white" : "text-white/90"}`}>
+                          {opt.text}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <span className="text-green-500 text-sm font-bold flex items-center gap-1 pr-2">
+                          <Check className="w-4 h-4" strokeWidth={3} /> Selected
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
-          <Button onClick={handleSubmitQuiz1}>Submit Answers</Button>
+          <div className="pt-4">
+            <Button onClick={handleSubmitQuiz1} className="w-full py-6 text-lg bg-blue-600 hover:bg-blue-700 text-white rounded-xl">Submit Answers</Button>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -253,71 +301,62 @@ export default function PasswordPage() {
 
   const renderQuiz2 = () => (
     <div ref={quiz2Ref} className="mt-8 flex justify-center">
-      <Card className="max-w-lg w-full mx-auto">
+      <Card className="max-w-xl w-full mx-auto bg-[#0B1120] text-white border-muted/30">
         <CardHeader>
-          <CardTitle>Listening</CardTitle>
+          <CardTitle className="text-2xl text-center pb-4 border-b border-muted/20">Listening</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-8 pt-6">
           {quiz2.map((q, idx) => (
-            <div key={idx} className="space-y-3">
-              <label className="font-semibold text-lg">Question {idx + 1}</label>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                {q.option_a && (
-                  <Button
-                    variant={answers2[idx] === "a" ? "default" : "outline"}
-                    className="justify-start font-normal h-auto py-2"
-                    onClick={() => {
-                      const copy = [...answers2];
-                      copy[idx] = "a";
-                      setAnswers2(copy);
-                    }}
-                  >
-                    A
-                  </Button>
-                )}
-                {q.option_b && (
-                  <Button
-                    variant={answers2[idx] === "b" ? "default" : "outline"}
-                    className="justify-start font-normal h-auto py-2"
-                    onClick={() => {
-                      const copy = [...answers2];
-                      copy[idx] = "b";
-                      setAnswers2(copy);
-                    }}
-                  >
-                    B
-                  </Button>
-                )}
-                {q.option_c && (
-                  <Button
-                    variant={answers2[idx] === "c" ? "default" : "outline"}
-                    className="justify-start font-normal h-auto py-2"
-                    onClick={() => {
-                      const copy = [...answers2];
-                      copy[idx] = "c";
-                      setAnswers2(copy);
-                    }}
-                  >
-                    C
-                  </Button>
-                )}
-                {q.option_d && (
-                  <Button
-                    variant={answers2[idx] === "d" ? "default" : "outline"}
-                    className="justify-start font-normal h-auto py-2"
-                    onClick={() => {
-                      const copy = [...answers2];
-                      copy[idx] = "d";
-                      setAnswers2(copy);
-                    }}
-                  >
-                    D
-                  </Button>
-                )}
+            <div key={idx} className="space-y-4">
+              <label className="font-medium text-lg lg:text-xl text-white mb-2 block">Question {idx + 1}</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: "a", label: "A" },
+                  { key: "b", label: "B" },
+                  { key: "c", label: "C" },
+                  { key: "d", label: "D" },
+                ].map(opt => {
+                  if (!q[`option_${opt.key}`]) return null;
+                  const isSelected = answers2[idx] === opt.key;
+                  return (
+                    <div
+                      key={opt.key}
+                      onClick={() => {
+                        const copy = [...answers2];
+                        copy[idx] = opt.key;
+                        setAnswers2(copy);
+                      }}
+                      className={`p-3 sm:p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all duration-200 ${
+                        isSelected 
+                          ? "bg-green-950/40 border border-green-900/50 shadow-[0_0_15px_rgba(20,83,45,0.2)]" 
+                          : "bg-teal-950/20 border border-transparent hover:bg-teal-900/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <span
+                          className={`flex justify-center items-center w-8 h-8 rounded-lg font-bold transition-colors ${
+                            isSelected
+                              ? "bg-teal-700 text-white"
+                              : "bg-teal-900/40 text-teal-300"
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <span className="text-green-500 text-sm font-bold flex items-center gap-1 pr-2">
+                          <Check className="w-4 h-4" strokeWidth={3} /> Selected
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
-          <Button onClick={handleSubmitQuiz2}>Submit Answers</Button>
+          <div className="pt-4">
+            <Button onClick={handleSubmitQuiz2} className="w-full py-6 text-lg bg-blue-600 hover:bg-blue-700 text-white rounded-xl">Submit Answers</Button>
+          </div>
         </CardContent>
       </Card>
     </div>
