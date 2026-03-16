@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Bazar", url: "/dashboard/bazar", icon: Bell },
+  // { title: "Bazar", url: "/dashboard/bazar", icon: Bell }, // removed
   { title: "Coding", url: "/dashboard/coding", icon: Code },
   { title: "Expected Output", url: "/dashboard/expected-output", icon: Eye },
 ];
@@ -108,7 +108,7 @@ function AppSidebar() {
                         activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                       >
                         <Trophy className="mr-2 h-4 w-4" />
-                        <span>School Quiz Progress</span>
+                        <span>Clever Mind Score</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -148,7 +148,7 @@ function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink
                         to="/dashboard/dichotomous-scoreboard"
-                        className="hover:bg-sidebar-accent/50"
+                        className="hover:bg-sidebar-accent/50 pl-6"
                         activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                       >
                         <Trophy className="mr-2 h-4 w-4" />
@@ -173,7 +173,7 @@ function AppSidebar() {
                             activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                           >
                             <FileText className="mr-2 h-4 w-4" />
-                            <span>Quiz Control</span>
+                            <span>Clever Mind Question Control</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -197,7 +197,7 @@ function AppSidebar() {
                             activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                           >
                             <FileEdit className="mr-2 h-4 w-4" />
-                            <span>Edit Question</span>
+                            <span>HTML Question Control</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -246,7 +246,7 @@ function AppSidebar() {
                             activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                           >
                             <Code className="mr-2 h-4 w-4" />
-                            <span>Round 1</span>
+                            <span>Knockout Round</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -258,7 +258,7 @@ function AppSidebar() {
                             activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                           >
                             <Code className="mr-2 h-4 w-4" />
-                            <span>Round 2</span>
+                            <span>Qualifier Round</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -270,7 +270,7 @@ function AppSidebar() {
                             activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                           >
                             <Code className="mr-2 h-4 w-4" />
-                            <span>Round 3</span>
+                            <span>Final Round</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

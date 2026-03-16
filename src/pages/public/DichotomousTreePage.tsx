@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
@@ -310,6 +311,7 @@ export default function DichotomousTreePage() {
   const isGameUrl = location.pathname.endsWith("/game");
 
   const [schoolNameInput, setSchoolNameInput] = useState("");
+  const [schoolOptions, setSchoolOptions] = useState<string[]>([]);
   const [step, setStep] = useState<Step>("enter");
   const [timeLeft, setTimeLeft] = useState(180);
   const [score, setScore] = useState(0);
@@ -328,6 +330,7 @@ export default function DichotomousTreePage() {
   const [canUndo, setCanUndo] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Always use the selected school name from the URL after navigation
   const schoolName = urlSchoolName ? decodeURIComponent(urlSchoolName) : "";
 
   /* ── fullscreen ── */
@@ -345,6 +348,16 @@ export default function DichotomousTreePage() {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  /* ── Fetch school names for dropdown ── */
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.from("teams").select("name").limit(7);
+      if (!error && data) {
+        setSchoolOptions(data.map((row: { name: string }) => row.name));
+      }
+    })();
   }, []);
 
   /* ── Fetch question + answer nodes from DB ── */
@@ -435,6 +448,13 @@ export default function DichotomousTreePage() {
     if (!root?.firstElementChild || !question) return;
     const state = serializeNode(root.firstElementChild);
 
+    // Defensive: log if schoolName is missing
+    if (!schoolName) {
+      console.error("[Dichotomous] schoolName is missing when saving tree!", { urlSchoolName, schoolNameInput });
+      toast.error("School name missing, cannot save progress.");
+      return;
+    }
+
     // Push previous state to undo stack (skip if we're restoring from undo)
     if (!isRestoringRef.current) {
       const prevJson = sessionStorage.getItem(`dichotomous_${schoolName}`);
@@ -464,7 +484,7 @@ export default function DichotomousTreePage() {
       }, { onConflict: "school_name,question_id" });
       if (error) console.error("Failed to save tree:", error);
     }, 1000);
-  }, [schoolName, question]);
+  }, [schoolName, question, urlSchoolName, schoolNameInput]);
 
   // Keep ref always pointing to latest saveTreeState
   useEffect(() => {
@@ -505,14 +525,7 @@ export default function DichotomousTreePage() {
     await saveScore(sc, 10, treeData);
     sessionStorage.removeItem(`dichotomous_${schoolName}`);
     sessionStorage.removeItem(`dichotomous_timer_${schoolName}`);
-    // Delete in-progress tree from DB
-    if (question) {
-      const db: any = supabase;
-      await db.from("dichotomous_user_trees")
-        .delete()
-        .eq("school_name", schoolName)
-        .eq("question_id", question.id);
-    }
+    // Do NOT delete in-progress tree from DB after submit; keep the data for review/analytics
     setStep("done");
     // Exit fullscreen on submit
     if (document.fullscreenElement) {
@@ -720,16 +733,28 @@ export default function DichotomousTreePage() {
         <Card className="w-full max-w-md mx-auto animate-scale-in glass-card">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-display">🌳 Dichotomous Tree Builder</CardTitle>
-            <p className="text-muted-foreground text-sm mt-1">Enter your school name to begin</p>
+            <p className="text-muted-foreground text-sm mt-1">Select your school to begin</p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Input
-              placeholder="Enter School Name"
+            <select
               value={schoolNameInput}
-              onChange={(e) => setSchoolNameInput(e.target.value)}
-              className="text-center text-lg"
-            />
-            <Button onClick={handleContinue} className="w-full" size="lg">
+              onChange={e => setSchoolNameInput(e.target.value)}
+              className="text-center text-lg w-full border rounded p-2 bg-transparent focus:bg-transparent focus:ring-2 focus:ring-primary/40 custom-select-white-options"
+            /* Add this style at the end of the file for white dropdown options */
+            // ...existing code...
+
+            // Add to the bottom of the file (or in your CSS):
+            // .custom-select-white-options option {
+            //   background: #fff;
+            //   color: #222;
+            // }
+            >
+              <option value="" disabled>Select School</option>
+              {schoolOptions.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <Button onClick={handleContinue} className="w-full" size="lg" disabled={!schoolNameInput}>
               Continue
             </Button>
           </CardContent>

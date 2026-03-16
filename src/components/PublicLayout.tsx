@@ -25,9 +25,7 @@ export default function PublicLayout() {
           Pentathlon
           </Link>
           <nav className="flex items-center gap-2">
-            <Button variant={isActive("/bazar") ? "default" : "ghost"} size="sm" asChild>
-              <Link to="/bazar"><Bell className="mr-1.5 h-4 w-4" /> Bazar</Link>
-            </Button>
+            {/* Bazar button removed */}
             <Button variant={isActive("/coding") ? "default" : "ghost"} size="sm" asChild>
               <Link to="/coding"><Code className="mr-1.5 h-4 w-4" /> Coding</Link>
             </Button>

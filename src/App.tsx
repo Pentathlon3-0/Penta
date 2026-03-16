@@ -15,7 +15,7 @@ import CodingPage from "@/pages/public/CodingPage";
 import DichotomousTreePage from "@/pages/public/DichotomousTreePage";
 import PasswordPage from "@/pages/public/PasswordPage";
 import DashboardHome from "@/pages/dashboard/DashboardHome";
-import DashboardBazar from "@/pages/dashboard/DashboardBazar";
+// import DashboardBazar from "@/pages/dashboard/DashboardBazar";
 import DashboardCoding from "@/pages/dashboard/DashboardCoding";
 import TeamSetupPage from "@/pages/dashboard/TeamSetupPage";
 import ScoreboardPage from "@/pages/dashboard/ScoreboardPage";
@@ -52,7 +52,7 @@ const App = () => (
             {/* Public routes with top navbar */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<Index />} />
-              <Route path="/bazar" element={<BazarPage />} />
+              {/* <Route path="/bazar" element={<BazarPage />} /> BazarPage removed */}
               <Route path="/coding" element={<CodingPage />} />
               <Route path="/coding/:schoolName" element={<CodingPage />} />
               <Route path="/dichotomous" element={<DichotomousTreePage />} />
@@ -76,7 +76,7 @@ const App = () => (
               }
             >
               <Route index element={<DashboardHome />} />
-              <Route path="bazar" element={<DashboardBazar />} />
+              {/* <Route path="bazar" element={<DashboardBazar />} /> DashboardBazar removed */}
               <Route path="coding" element={<DashboardCoding />} />
               <Route path="scoreboard" element={<ScoreboardPage />} />
               <Route path="livescore" element={<LivescorePage />} />

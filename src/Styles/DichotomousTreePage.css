@@ -1,3 +1,8 @@
+/* Custom select options: white background for dropdown */
+.custom-select-white-options option {
+  background: #fff;
+  color: #222;
+}
 /* ── Dichotomous Tree Page ── */
 
 /* Layout */

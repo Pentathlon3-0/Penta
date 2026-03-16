@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Bell, Code, LogIn, TreePine } from "lucide-react";
+import { Bell, Code, LogIn, TreePine, Lock } from "lucide-react";
 
 export default function Index() {
   return (
@@ -10,11 +10,11 @@ export default function Index() {
         Pentathlon
         </h1>
         <p className="text-xl text-muted-foreground max-w-md mx-auto">
-          The school competition platform. Press the bazar, take coding challenges, take dichotomous tree challenges, and compete!
+          The school competition platform. Access Clever Minds, take coding challenges, take dichotomous tree challenges, and compete!
         </p>
         <div className="flex flex-wrap justify-center gap-4">
           <Button size="lg" asChild>
-            <Link to="/bazar"><Bell className="mr-2 h-5 w-5" /> Bazar</Link>
+            <Link to="/password"><Lock className="mr-2 h-5 w-5" /> Clever Minds</Link>
           </Button>
           <Button size="lg" variant="secondary" asChild>
             <Link to="/coding"><Code className="mr-2 h-5 w-5" /> Coding Challenge</Link>
@@ -22,7 +22,6 @@ export default function Index() {
           <Button size="lg" variant="secondary" asChild>
             <Link to="/dichotomous"><TreePine className="mr-2 h-5 w-5" /> Dichotomous Tree</Link>
           </Button>
-          
         </div>
       </div>
     </div>
