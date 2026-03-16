@@ -1,0 +1,62 @@
+.player-performance-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #001021 0%, #002848 50%, #004080 100%);
+  padding: 2rem;
+}
+
+.player-performance-card {
+  max-width: 1000px;
+  margin: 0 auto;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 20px;
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.15), 0 25px 50px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(18px);
+  padding: 1.5rem;
+  color: #e2e8f0;
+}
+
+.player-performance-title {
+  margin: 0;
+  text-align: center;
+  color: #a0e7ff;
+  text-shadow: 0 0 10px #3ba9ff, 0 0 20px #3ba9ff;
+}
+
+.player-performance-loading {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.player-performance-table-wrap {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.player-performance-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.player-performance-table th,
+.player-performance-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.35);
+  text-align: left;
+}
+
+.player-performance-table th {
+  color: #93c5fd;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.player-performance-table tbody tr:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.player-performance-table tbody tr:hover {
+  background: rgba(30, 58, 138, 0.25);
+}

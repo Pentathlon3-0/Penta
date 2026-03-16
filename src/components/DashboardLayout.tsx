@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Code, Eye, FileEdit, LayoutDashboard, LogOut, TreePine, Trophy, FileText } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,14 +22,38 @@ const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Bazar", url: "/dashboard/bazar", icon: Bell },
   { title: "Coding", url: "/dashboard/coding", icon: Code },
-  { title: "Scoreboard", url: "/dashboard/scoreboard", icon: Trophy },
   { title: "Expected Output", url: "/dashboard/expected-output", icon: Eye },
 ];
 
 function AppSidebar() {
   const { signOut, isAdmin, roles } = useAuth();
   const location = useLocation();
+  const controlRoutes = [
+    "/dashboard/quiz-admin",
+    "/dashboard/team-setup",
+    "/dashboard/edit-question",
+    "/dashboard/dichotomous-admin",
+  ];
+  const isControlRoute = controlRoutes.some((route) => location.pathname.startsWith(route));
+  const isScoreboardRoute =
+    location.pathname.startsWith("/dashboard/scoreboard") ||
+    location.pathname.startsWith("/dashboard/livescore") ||
+    location.pathname.startsWith("/dashboard/player-performance");
   const [roundsOpen, setRoundsOpen] = useState(false);
+  const [controlOpen, setControlOpen] = useState(isControlRoute);
+  const [scoreboardOpen, setScoreboardOpen] = useState(isScoreboardRoute);
+
+  useEffect(() => {
+    if (isControlRoute) {
+      setControlOpen(true);
+    }
+  }, [isControlRoute]);
+
+  useEffect(() => {
+    if (isScoreboardRoute) {
+      setScoreboardOpen(true);
+    }
+  }, [isScoreboardRoute]);
 
   return (
     <Sidebar collapsible="icon">
@@ -55,32 +79,71 @@ function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {isAdmin && (
+              {/* scoreboard collapsible group */}
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setScoreboardOpen((o) => !o)}>
+                  <Trophy className="mr-2 h-4 w-4" />
+                  <span>Scoreboard {scoreboardOpen ? '▲' : '▼'}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {scoreboardOpen && (
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
-                        to="/dashboard/edit-question"
-                        className="hover:bg-sidebar-accent/50"
+                        to="/dashboard/scoreboard"
+                        className="hover:bg-sidebar-accent/50 pl-6"
                         activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                       >
-                        <FileEdit className="mr-2 h-4 w-4" />
-                        <span>Edit Question</span>
+                        <Trophy className="mr-2 h-4 w-4" />
+                        <span>Scoreboard</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
-                        to="/dashboard/dichotomous-admin"
-                        className="hover:bg-sidebar-accent/50"
+                        to="/dashboard/school-quiz-progress"
+                        className="hover:bg-sidebar-accent/50 pl-6"
                         activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                       >
-                        <TreePine className="mr-2 h-4 w-4" />
-                        <span>Dichotomous Tree</span>
+                        <Trophy className="mr-2 h-4 w-4" />
+                        <span>School Quiz Progress</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  {isAdmin && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to="/dashboard/livescore"
+                          className="hover:bg-sidebar-accent/50 pl-6"
+                          activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                        >
+                          <Trophy className="mr-2 h-4 w-4" />
+                          <span>Live Score</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {isAdmin && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to="/dashboard/player-performance"
+                          className="hover:bg-sidebar-accent/50 pl-6"
+                          activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                        >
+                          <Trophy className="mr-2 h-4 w-4" />
+                          <span>Player Performance</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                </>
+              )}
+              {isAdmin && (
+                <>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink
@@ -93,43 +156,64 @@ function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  {/* control collapsible group */}
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to="/dashboard/team-setup"
-                        className="hover:bg-sidebar-accent/50"
-                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                      >
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        <span>Team Setup</span>
-                      </NavLink>
+                    <SidebarMenuButton onClick={() => setControlOpen((o) => !o)}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      <span>Control {controlOpen ? '▲' : '▼'}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to="/dashboard/livescore"
-                        className="hover:bg-sidebar-accent/50"
-                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                      >
-                        <Trophy className="mr-2 h-4 w-4" />
-                        <span>Live Score</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {isAdmin && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to="/dashboard/quiz-admin"
-                        className="hover:bg-sidebar-accent/50"
-                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        <span>Quiz Control</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {controlOpen && (
+                    <>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to="/dashboard/quiz-admin"
+                            className="hover:bg-sidebar-accent/50 pl-6"
+                            activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                          >
+                            <FileText className="mr-2 h-4 w-4" />
+                            <span>Quiz Control</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to="/dashboard/team-setup"
+                            className="hover:bg-sidebar-accent/50 pl-6"
+                            activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                          >
+                            <LayoutDashboard className="mr-2 h-4 w-4" />
+                            <span>Team Setup</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to="/dashboard/edit-question"
+                            className="hover:bg-sidebar-accent/50 pl-6"
+                            activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                          >
+                            <FileEdit className="mr-2 h-4 w-4" />
+                            <span>Edit Question</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to="/dashboard/dichotomous-admin"
+                            className="hover:bg-sidebar-accent/50 pl-6"
+                            activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                          >
+                            <TreePine className="mr-2 h-4 w-4" />
+                            <span>Dichotomous Tree</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </>
                   )}
                   {/* rounds collapsible group */}
                   <SidebarMenuItem>

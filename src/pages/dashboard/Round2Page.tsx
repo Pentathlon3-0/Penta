@@ -463,6 +463,18 @@ const Round2Page = () => {
       const pts = Math.round(Number(round2Scores[i] || 0));
       updateLiveScore(t.id, { qualifier_round2_final: pts });
     });
+
+    // Insert top 3 school IDs into final_round table if not already present
+    // Sort teams by their round2Scores (descending), get top 3
+    const scoredTeams = teams.map((t, i) => ({ id: t.id, score: Number(round2Scores[i] || 0) }));
+    const top3 = scoredTeams.sort((a, b) => b.score - a.score).slice(0, 3);
+    for (const t of top3) {
+      await (supabase as any).from("final_round").upsert({
+        school_id: t.id,
+        clever_mind_score: 0,
+        brain_maze_score: 0
+      });
+    }
   };
 
   /* ================= UI (100% UNCHANGED) ================= */

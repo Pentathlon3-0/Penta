@@ -350,6 +350,7 @@ export default function PasswordPage() {
     quiz1_submitted?: boolean;
     quiz2_submitted?: boolean;
     letters_given?: { quiz1?: string[]; quiz2?: string[] };
+    document_marks?: number | null;
   }) => {
     try {
       const row: Record<string, any> = {
@@ -363,6 +364,7 @@ export default function PasswordPage() {
       if (payload.quiz1_submitted !== undefined) row.quiz1_submitted = payload.quiz1_submitted;
       if (payload.quiz2_submitted !== undefined) row.quiz2_submitted = payload.quiz2_submitted;
       if (payload.letters_given !== undefined) row.letters_given = payload.letters_given;
+      if (payload.document_marks !== undefined) row.document_marks = payload.document_marks;
 
       const { data, error } = await (supabase as any)
         .from("school_quiz_progress")
@@ -382,6 +384,12 @@ export default function PasswordPage() {
     }
   };
 
+  // Award document marks: 50 if document unlocked and marked correctly, else 0
+  const awardDocumentMarks = async (schoolName: string, unlocked: boolean, markedCorrectly: boolean) => {
+    const marks = unlocked && markedCorrectly ? 50 : 0;
+    await upsertQuizProgress({ school_name: schoolName, document_marks: marks });
+  };
+
   const handleContinueSchool = async () => {
     const normalizedSchoolName = schoolName.trim();
     if (!normalizedSchoolName) return;
@@ -397,11 +405,15 @@ export default function PasswordPage() {
     setSearchParams({ step: "quiz1", school: normalizedSchoolName, q: "0" });
 
     // Persist the school entry and initialize progress row
-    const saved = await upsertQuizProgress({
-      school_name: normalizedSchoolName,
-    });
+    const saved = await upsertQuizProgress({ school_name: normalizedSchoolName });
     if (!saved) {
       console.warn("School progress row was not saved. Check Supabase schema/policies.");
+    }
+    // Award document marks when document is unlocked and marked correctly
+    if (documentUnlocked) {
+      await awardDocumentMarks(normalizedSchoolName, documentUnlocked, true);
+    } else {
+      await awardDocumentMarks(normalizedSchoolName, false, false);
     }
 
     // scroll to quiz1

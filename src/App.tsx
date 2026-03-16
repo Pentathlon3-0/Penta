@@ -23,6 +23,8 @@ import Round1Page from "@/pages/dashboard/Round1Page";
 import Round2Page from "@/pages/dashboard/Round2Page";
 import Round3Page from "@/pages/dashboard/Round3Page";
 import LivescorePage from "@/pages/dashboard/LivescorePage";
+import PlayerPerformancePage from "@/pages/dashboard/PlayerPerformancePage";
+import SchoolQuizProgressPage from "@/pages/dashboard/SchoolQuizProgressPage";
 import ExpectedOutputPage from "@/pages/dashboard/ExpectedOutputPage";
 import EditQuestionPage from "@/pages/dashboard/EditQuestionPage";
 import DichotomousAdminPage from "@/pages/dashboard/DichotomousAdminPage";
@@ -76,6 +78,8 @@ const App = () => (
               <Route path="coding" element={<DashboardCoding />} />
               <Route path="scoreboard" element={<ScoreboardPage />} />
               <Route path="livescore" element={<LivescorePage />} />
+              <Route path="player-performance" element={<PlayerPerformancePage />} />
+              <Route path="school-quiz-progress" element={<SchoolQuizProgressPage />} />
               <Route path="expected-output" element={<ExpectedOutputPage />} />
               {/* admin-only pages */}
               <Route path="edit-question" element={<EditQuestionPage />} />
