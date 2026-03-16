@@ -215,6 +215,20 @@ function AppSidebar() {
                       </SidebarMenuItem>
                     </>
                   )}
+                  {/* Danger Zone link for admins */}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/dashboard/danger-zone"
+                        className="hover:bg-red-900/40 text-red-400 font-semibold"
+                        activeClassName="bg-red-900 text-red-200 font-bold"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        <span>Danger Zone</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
                   {/* rounds collapsible group */}
                   <SidebarMenuItem>
                     <SidebarMenuButton onClick={() => setRoundsOpen(o => !o)}>

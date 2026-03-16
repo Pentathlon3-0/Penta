@@ -44,6 +44,7 @@ export default function PasswordPage() {
   const { isAdmin } = useAuth();
 
   const [schoolName, setSchoolName] = useState("");
+  const [finalistSchools, setFinalistSchools] = useState<{ id: string; name: string }[]>([]);
   const [step, setStep] = useState<
     "enterSchool" | "quiz1" | "quiz2"
   >("enterSchool");
@@ -230,13 +231,63 @@ export default function PasswordPage() {
         .select("quiz1_enabled, quiz2_enabled, active_school_id")
         .eq("id", "1")
         .single();
-      
       let activeSchoolId = 1;
       if (data) {
         setQuiz1Enabled(data.quiz1_enabled);
         setQuiz2Enabled(data.quiz2_enabled);
         activeSchoolId = data.active_school_id || 1;
         setActiveSchoolId(activeSchoolId);
+      }
+
+      // fetch top 3 schools by total score (sum of three columns)
+      // FIX: Use correct column names from your actual final_round schema
+      // Try to fetch all columns, fallback if some are missing
+      let finalsRaw = null;
+      let finalsError = null;
+      let finals = [];
+      try {
+        const { data, error } = await (supabase as any)
+          .from("final_round")
+          .select("school_id, clever_mind_score, brain_maze_score, buzar_score");
+        finalsRaw = data;
+        finalsError = error;
+        if (finalsError) {
+          throw finalsError;
+        }
+        if (finalsRaw && finalsRaw.length > 0) {
+          finals = finalsRaw
+            .filter((row: any) => row.school_id)
+            .map((row: any) => ({
+              school_id: row.school_id,
+              total:
+                (row.clever_mind_score || 0) +
+                (row.brain_maze_score || 0) +
+                (row.buzar_score || 0),
+            }));
+          finals = finals.sort((a: any, b: any) => b.total - a.total).slice(0, 3);
+        }
+      } catch (err) {
+        console.error("Error fetching final_round (check column names):", err);
+        // Optionally show a user-facing error message here
+      }
+      console.log("finalsRaw:", finalsRaw);
+      console.log("finals (top 3):", finals);
+      if (finals.length > 0) {
+        const ids = finals.map((f: any) => f.school_id);
+        const { data: schools, error: schoolsError } = await (supabase as any)
+          .from("teams")
+          .select("id, name")
+          .in("id", ids);
+        if (schoolsError) {
+          console.error("Error fetching teams:", schoolsError);
+        }
+        const orderedSchools = ids
+          .map((id: string) => (schools || []).find((s: any) => s.id === id))
+          .filter(Boolean);
+        setFinalistSchools(orderedSchools);
+        console.log("orderedSchools (dropdown):", orderedSchools);
+      } else {
+        setFinalistSchools([]);
       }
 
       // fetch the questions for both quizzes filtered by active_school_id
@@ -589,26 +640,30 @@ export default function PasswordPage() {
     <div className="flex justify-center">
       <Card className="w-full max-w-md bg-[#0B1120]/95 text-white border border-blue-900/30 shadow-2xl rounded-2xl">
         <CardHeader className="pb-2">
-          <CardTitle className="text-3xl font-extrabold tracking-tight">Enter School</CardTitle>
-          <p className="text-sm text-white/70">Type your school name to begin the challenge rounds.</p>
+          <CardTitle className="text-3xl font-extrabold tracking-tight">Select School</CardTitle>
+          <p className="text-sm text-white/70">Choose your school from the finalists to begin the challenge rounds.</p>
         </CardHeader>
         <CardContent className="space-y-5 pt-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">School Name</label>
-            <Input
-              placeholder="School name"
+            <label className="text-sm font-medium text-white/80">School</label>
+            <select
               value={schoolName}
               onChange={e => setSchoolName(e.target.value)}
-              className="h-12 text-base bg-black/40 border-blue-900/40 focus-visible:ring-blue-500"
-            />
+              className="h-12 text-base bg-black/40 border-blue-900/40 focus-visible:ring-blue-500 w-full rounded-md"
+            >
+              <option value="">Select a school</option>
+              {finalistSchools.map(school => (
+                <option key={school.id} value={school.name}>{school.name}</option>
+              ))}
+            </select>
           </div>
           <Button
             onClick={handleContinueSchool}
             className="h-12 px-8 text-lg font-semibold bg-blue-500 hover:bg-blue-600 text-white"
+            disabled={!schoolName}
           >
             Continue
           </Button>
-          {/* keep links removed from input card now; nav card handles them */}
           {showLinks && null}
         </CardContent>
       </Card>
@@ -1145,7 +1200,7 @@ export default function PasswordPage() {
                   {documentError ? <p className="text-sm document-error-text">{documentError}</p> : null}
                   <div className="flex justify-center">
                     <Button
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="bg-blue-500 hover:bg-blue-600 text-white"
                       disabled={isCompetitionLocked}
                       onClick={() => {
                         const attempt = normalizePasswordInput(documentPasswordInput);
@@ -1159,6 +1214,8 @@ export default function PasswordPage() {
                         }
                         setDocumentUnlocked(true);
                         setDocumentError("");
+                        // Award document marks immediately when unlocked
+                        awardDocumentMarks(schoolName, true, true);
                       }}
                     >
                       Unlock Document

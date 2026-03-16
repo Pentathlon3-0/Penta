@@ -28,8 +28,10 @@ import SchoolQuizProgressPage from "@/pages/dashboard/SchoolQuizProgressPage";
 import ExpectedOutputPage from "@/pages/dashboard/ExpectedOutputPage";
 import EditQuestionPage from "@/pages/dashboard/EditQuestionPage";
 import DichotomousAdminPage from "@/pages/dashboard/DichotomousAdminPage";
+
 import DichotomousScoreboardPage from "@/pages/dashboard/DichotomousScoreboardPage";
 import QuizAdminPage from "@/pages/dashboard/QuizAdminPage";
+import DangerZoneAdmin from "@/pages/dashboard/DangerZoneAdmin";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +92,8 @@ const App = () => (
               <Route path="round2" element={<Round2Page />} />
               <Route path="round3" element={<Round3Page />} />
               <Route path="quiz-admin" element={<QuizAdminPage />} />
+              {/* Danger Zone admin page (admin only) */}
+              <Route path="danger-zone" element={<DangerZoneAdmin />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
