@@ -79,7 +79,7 @@ export default function DichotomousScoreboardPage() {
 
   // compute percentage for each row (table already groups by school in raw data)
   const schoolRows = scores.map((r) => {
-    const pct = r.total > 0 ? Math.round((r.score / r.total) * 100) : 0;
+    const pct = r.total > 0 ? Math.round((r.score )) : 0;
     return {
       school_name: r.school_name,
       score100: pct,
@@ -101,7 +101,7 @@ export default function DichotomousScoreboardPage() {
       {/* Summary table: school totals out of 100 */}
       <Card>
         <CardHeader>
-          <CardTitle>School-wise Total Scores (Out of 100)</CardTitle>
+          <CardTitle>School-wise Scores</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -114,9 +114,7 @@ export default function DichotomousScoreboardPage() {
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>School Name</TableHead>
-                  <TableHead className="text-center">Questions</TableHead>
-                  <TableHead className="text-center">Total Points</TableHead>
-                  <TableHead className="text-center">Out of 100</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -124,7 +122,6 @@ export default function DichotomousScoreboardPage() {
                   <TableRow key={row.school_name}>
                     <TableCell className="font-medium">{idx + 1}</TableCell>
                     <TableCell className="font-semibold">{row.school_name}</TableCell>
-                    <TableCell className="text-center">{row.totalScore}/{row.maxPossible}</TableCell>
                     <TableCell className="text-center font-bold text-primary text-lg">{row.score100}</TableCell>
                   </TableRow>
                 ))}
@@ -135,52 +132,6 @@ export default function DichotomousScoreboardPage() {
       </Card>
 
       {/* Detailed table: individual scores per question */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Detailed Scores</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-muted-foreground text-center py-4">Loading...</p>
-          ) : scores.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">No scores yet</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">#</TableHead>
-                  <TableHead>School Name</TableHead>
-                  <TableHead className="text-center">Points</TableHead>
-                  <TableHead className="text-center">Time</TableHead>
-                  <TableHead className="w-20">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {scores.map((row, idx) => (
-                  <TableRow key={`${row.school_name}-${idx}`}>
-                    <TableCell>{idx + 1}</TableCell>
-                    <TableCell className="font-semibold">{row.school_name}</TableCell>
-                    <TableCell className="text-center font-bold">{row.score}/{row.total}</TableCell>
-                    <TableCell className="text-center text-sm text-muted-foreground">
-                      {new Date(row.created_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => deleteScore(row)}
-                        title="Delete this score"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

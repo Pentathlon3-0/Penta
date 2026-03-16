@@ -1,3 +1,31 @@
+/**
+ * Extracts a detailed user tree format: { feature: [animals], ... }
+ * Includes all split and pending features recursively.
+ */
+function extractDetailedUserTreeFormat(node: NodeData | null): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  function traverse(n: NodeData | null) {
+    if (!n) return;
+    // If this node is a split, recurse into children
+    if (n.isSplit && n.left && n.right) {
+      traverse(n.left);
+      traverse(n.right);
+    }
+    // For pending features (pre-split), add them with their animals
+    if (n.pendingFeatL) {
+      result[n.pendingFeatL] = n.pendingLeft && n.pendingLeft.length > 0 ? n.pendingLeft : [];
+    }
+    if (n.pendingFeatR) {
+      result[n.pendingFeatR] = n.pendingRight && n.pendingRight.length > 0 ? n.pendingRight : [];
+    }
+    // Also add this node's label if not root and not 'விலங்குகள்'
+    if (n.label && n.label !== 'விலங்குகள்') {
+      result[n.label] = n.animals;
+    }
+  }
+  traverse(node);
+  return result;
+}
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +69,27 @@ interface NodeData {
   pendingFeatR?: string;
 }
 
+/**
+ * Extracts the user tree format: { label: [animals], ... }
+ * where label is a feature (from பண்புகளின் வங்கி) and the array is the animals assigned to that feature.
+ */
+function extractUserTreeFormat(node: NodeData | null): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  function traverse(n: NodeData | null, isRoot = false) {
+    if (!n) return;
+    // Always record the root node's animals, even if label is 'விலங்குகள்'
+    if (n.label && (isRoot || n.label !== 'விலங்குகள்')) {
+      result[n.label] = n.animals;
+    }
+    if (n.isSplit && n.left && n.right) {
+      traverse(n.left);
+      traverse(n.right);
+    }
+  }
+  traverse(node, true);
+  return result;
+}
+
 type Step = "enter" | "instructions" | "game" | "done";
 
 /* ── helpers ── */
@@ -49,39 +98,47 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.every((val, idx) => val === b[idx]);
 }
 
-/** Validate tree against DB answer nodes. Match feature+animals regardless of left/right side. */
+/**
+ * Validate user answer against DB answer nodes using user_tree_detailed format.
+ * Full marks only if all features match exactly, otherwise partial marks by feature.
+ */
 function validateTreeFromDB(treeData: NodeData | null, answerNodes: AnswerNode[]): number {
   if (!treeData) return 0;
+  if (!answerNodes || answerNodes.length === 0) return 0;
 
-  // Build a map: feature_name → sorted animals
-  const expectedByFeature: Record<string, string[]> = {};
+  // Build correct answer mapping: feature_name -> animals[]
+  const correctMap: Record<string, string[]> = {};
   for (const n of answerNodes) {
-    expectedByFeature[n.feature_name] = [...n.animals].sort();
-  }
-
-  const totalFeatures = answerNodes.length;
-  if (totalFeatures === 0) return 0;
-
-  let correctCount = 0;
-
-  function checkNode(node: NodeData) {
-    if (!node.isSplit || !node.left || !node.right) return;
-
-    // Check both children (left and right) against expected feature→animals
-    for (const child of [node.left, node.right]) {
-      const expected = expectedByFeature[child.label];
-      if (expected && arraysEqual([...child.animals].sort(), expected)) {
-        correctCount++;
-      }
+    if (n.feature_name) {
+      correctMap[n.feature_name] = n.animals;
     }
-
-    // Recurse into children
-    checkNode(node.left);
-    checkNode(node.right);
   }
 
-  checkNode(treeData);
-  return Math.round((correctCount / totalFeatures) * 10);
+  // Get user answer in the same format
+  const userMap = extractDetailedUserTreeFormat(treeData);
+
+  // Collect all unique features from both user and correct answer
+  const allFeatures = Array.from(new Set([
+    ...Object.keys(userMap),
+    ...Object.keys(correctMap)
+  ]));
+
+  let correctFeatures = 0;
+  for (const feature of allFeatures) {
+    const userAnimals = (userMap[feature] || []).slice().sort();
+    const correctAnimals = (correctMap[feature] || []).slice().sort();
+    if (arraysEqual(userAnimals, correctAnimals)) {
+      correctFeatures++;
+    }
+  }
+
+  // Full marks if all features are correct
+  if (correctFeatures === allFeatures.length && allFeatures.length > 0) {
+    return 100;
+  }
+  // Otherwise, partial marks by feature
+  const score = Math.round((correctFeatures / allFeatures.length) * 100);
+  return score;
 }
 
 function serializeNode(container: Element): NodeData {
@@ -194,7 +251,7 @@ function createBranch(
 
     const updateUI = () => {
       renderPool();
-      const makeDraggable = (name: string): HTMLElement => {
+      const makeDraggable = (name: string, zone: 'left' | 'right' = 'left'): HTMLElement => {
         const s = document.createElement("span");
         s.className = "animal-tag";
         s.innerText = name;
@@ -203,20 +260,44 @@ function createBranch(
           e.dataTransfer?.setData("type", "animal");
           e.dataTransfer?.setData("text", name);
         });
+        // Add remove button if in drop zone (not in pool)
+        if ((zone === 'left' && leftSide.includes(name)) || (zone === 'right' && rightSide.includes(name))) {
+          const btn = document.createElement("button");
+          btn.innerText = "×";
+          btn.className = "animal-remove-btn";
+          btn.title = "Remove";
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            // Remove from drop zone and return to pool
+            if (zone === 'left') {
+              leftSide = leftSide.filter((a) => a !== name);
+            } else {
+              rightSide = rightSide.filter((a) => a !== name);
+            }
+            updateUI();
+            // Save the full tree from the root after removal
+            setTimeout(() => {
+              const root = document.getElementById('tree-root');
+              if (root && root.firstElementChild) saveTreeState();
+            }, 0);
+          };
+          s.appendChild(btn);
+          s.style.position = "relative";
+        }
         return s;
       };
       const zl = ui.querySelector("#zone-l") as HTMLElement;
       zl.innerHTML = "";
-      leftSide.forEach((n) => zl.appendChild(makeDraggable(n)));
+      leftSide.forEach((n) => zl.appendChild(makeDraggable(n, 'left')));
       const zr = ui.querySelector("#zone-r") as HTMLElement;
       zr.innerHTML = "";
-      rightSide.forEach((n) => zr.appendChild(makeDraggable(n)));
+      rightSide.forEach((n) => zr.appendChild(makeDraggable(n, 'right')));
       splitBtn.disabled = !(
         featL && featR &&
         leftSide.length + rightSide.length === animals.length &&
         leftSide.length > 0 && rightSide.length > 0
       );
-      saveTreeState();
+      // Do NOT call saveTreeState here; only after drop/removal/split
     };
 
     ui.addEventListener("dragover", (e) => e.preventDefault());
@@ -225,19 +306,32 @@ function createBranch(
       const val = e.dataTransfer?.getData("text");
       const target = (e.target as HTMLElement).closest(".feature-slot, .drop-zone") as HTMLElement;
       if (!target || !type || !val) return;
+      let changed = false;
       if (type === "feature" && target.classList.contains("feature-slot")) {
         target.innerText = val;
-        target.style.background = "#fef3c7";
         target.style.borderStyle = "solid";
-        if (target.id === "slot-l") featL = val;
-        else featR = val;
+        if (target.id === "slot-l" && featL !== val) { featL = val; changed = true; }
+        else if (target.id === "slot-r" && featR !== val) { featR = val; changed = true; }
       } else if (type === "animal" && target.classList.contains("drop-zone")) {
-        leftSide = leftSide.filter((n) => n !== val);
-        rightSide = rightSide.filter((n) => n !== val);
-        if (target.id === "zone-l") leftSide.push(val);
-        else rightSide.push(val);
+        // Only update if the animal is actually moved
+        if (target.id === "zone-l" && !leftSide.includes(val)) {
+          leftSide = leftSide.filter((n) => n !== val);
+          rightSide = rightSide.filter((n) => n !== val);
+          leftSide.push(val);
+          changed = true;
+        } else if (target.id === "zone-r" && !rightSide.includes(val)) {
+          leftSide = leftSide.filter((n) => n !== val);
+          rightSide = rightSide.filter((n) => n !== val);
+          rightSide.push(val);
+          changed = true;
+        }
       }
       updateUI();
+      // Save the full tree from the root after drop
+      setTimeout(() => {
+        const root = document.getElementById('tree-root');
+        if (root && root.firstElementChild) saveTreeState();
+      }, 0);
     });
 
     splitBtn.onclick = () => {
@@ -255,7 +349,11 @@ function createBranch(
       lc.appendChild(createBranch(leftSide, featL, savedData?.left || null, saveTreeState));
       rc.appendChild(createBranch(rightSide, featR, savedData?.right || null, saveTreeState));
       container.appendChild(connector);
-      saveTreeState();
+      // Save the full tree from the root after split
+      setTimeout(() => {
+        const root = document.getElementById('tree-root');
+        if (root && root.firstElementChild) saveTreeState();
+      }, 0);
     };
 
     if (savedData?.isSplit && savedData.left && savedData.right) {
@@ -280,11 +378,11 @@ function createBranch(
       setTimeout(() => {
         if (featL) {
           const slotL = ui.querySelector("#slot-l") as HTMLElement;
-          if (slotL) { slotL.innerText = featL; slotL.style.background = "#fef3c7"; slotL.style.borderStyle = "solid"; }
+          if (slotL) { slotL.innerText = featL; slotL.style.borderStyle = "solid"; }
         }
         if (featR) {
           const slotR = ui.querySelector("#slot-r") as HTMLElement;
-          if (slotR) { slotR.innerText = featR; slotR.style.background = "#fef3c7"; slotR.style.borderStyle = "solid"; }
+          if (slotR) { slotR.innerText = featR; slotR.style.borderStyle = "solid"; }
         }
         updateUI();
       }, 0);
@@ -475,10 +573,13 @@ export default function DichotomousTreePage() {
     saveTimerRef.current = setTimeout(async () => {
       const db: any = supabase;
       const timerVal = parseInt(sessionStorage.getItem(`dichotomous_timer_${schoolName}`) || '180', 10);
+      // Always update tree_data and user_tree_detailed with the latest state
+      const userTreeDetailed = extractDetailedUserTreeFormat(state);
       const { error } = await db.from("dichotomous_user_trees").upsert({
         school_name: schoolName,
         question_id: question.id,
-        tree_data: state,
+        tree_data: state, // always update tree_data
+        user_tree_detailed: userTreeDetailed, // always update user_tree_detailed
         timer_remaining: timerVal,
         updated_at: new Date().toISOString(),
       }, { onConflict: "school_name,question_id" });
@@ -517,12 +618,35 @@ export default function DichotomousTreePage() {
     submittedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
 
+    // Always save the latest tree state before submit
+    if (saveTreeStateRef.current) {
+      saveTreeStateRef.current();
+    }
+
     const root = treeRootRef.current;
     const firstChild = root?.firstElementChild ?? null;
     const treeData = firstChild ? serializeNode(firstChild) : null;
     const sc = validateTreeFromDB(treeData, answerNodes);
     setScore(sc);
     await saveScore(sc, 10, treeData);
+
+    // After submit, upsert tree_data and user_tree_detailed in dichotomous_user_trees
+    try {
+      if (schoolName && question && treeData) {
+        const userTreeDetailed = extractDetailedUserTreeFormat(treeData);
+        const db: any = supabase;
+        await db.from("dichotomous_user_trees").upsert({
+          school_name: schoolName,
+          question_id: question.id,
+          tree_data: treeData,
+          user_tree_detailed: userTreeDetailed,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "school_name,question_id" });
+      }
+    } catch (err) {
+      console.error("Failed to upsert tree_data, user_tree_detailed after submit", err);
+    }
+
     sessionStorage.removeItem(`dichotomous_${schoolName}`);
     sessionStorage.removeItem(`dichotomous_timer_${schoolName}`);
     // Do NOT delete in-progress tree from DB after submit; keep the data for review/analytics
@@ -536,7 +660,7 @@ export default function DichotomousTreePage() {
       navigate(`/dichotomous/${encodeURIComponent(schoolName)}/${urlQuestionId}`, { replace: true });
     }
     toast.success("Submitted!");
-  }, [saveScore, schoolName, answerNodes, urlQuestionId, navigate]);
+  }, [saveScore, schoolName, answerNodes, urlQuestionId, navigate, question]);
 
   /* ── init game when entering game step ── */
   useEffect(() => {
@@ -685,36 +809,30 @@ export default function DichotomousTreePage() {
     return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const renderCorrectAnswersJSX = () => {
-    // Group answer nodes by parent_label
-    const byParent: Record<string, AnswerNode[]> = {};
-    for (const n of answerNodes) {
-      if (!byParent[n.parent_label]) byParent[n.parent_label] = [];
-      byParent[n.parent_label].push(n);
-    }
-    for (const k of Object.keys(byParent)) {
-      byParent[k].sort((a, b) => a.position - b.position);
-    }
+  // Show difference between user answer and correct answer after submit
+  const [userTreeMap, setUserTreeMap] = useState<Record<string, string[]> | null>(null);
 
-    return (
-      <div className="dt-answer-card">
-        <h2>சரியான பதில்கள்</h2>
-        {Object.entries(byParent).map(([parentLabel, nodes]) => (
-          <div key={parentLabel} className="dt-answer-row">
-            <div className="dt-answer-title">{parentLabel}</div>
-            <div className="dt-answer-cols">
-              {nodes.map((n) => (
-                <div key={n.feature_name} className="dt-answer-col">
-                  <div className="dt-answer-col-title">{n.feature_name}</div>
-                  <div className="dt-answer-items">{(n.animals as string[]).join(", ")}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  useEffect(() => {
+    if (step !== "done" || !schoolName || !question) return;
+    (async () => {
+      const db: any = supabase;
+      // Fetch from dichotomous_user_trees.user_tree_detailed (new format)
+      const { data } = await db
+        .from("dichotomous_user_trees")
+        .select("user_tree_detailed")
+        .eq("school_name", schoolName)
+        .eq("question_id", question.id)
+        .maybeSingle();
+      if (data && data.user_tree_detailed) {
+        setUserTreeMap(data.user_tree_detailed);
+      } else {
+        setUserTreeMap(null);
+      }
+    })();
+  }, [step, schoolName, question]);
+
+  // No answer comparison display needed
+  const renderDifferenceJSX = () => null;
 
   /* ── RENDER ── */
   return (
@@ -821,7 +939,7 @@ export default function DichotomousTreePage() {
                   timeLeft <= 30
                     ? "bg-destructive/10 text-destructive animate-pulse"
                     : timeLeft <= 60
-                    ? "bg-yellow-500/10 text-yellow-600"
+                    ? "bg-yellow-500/10 dt-timer-warning"
                     : "bg-primary/10 text-primary"
                 }`}
               >
@@ -865,13 +983,13 @@ export default function DichotomousTreePage() {
             <CardContent className="pt-8 pb-8">
               <div className="text-6xl mb-4">✅</div>
               <h2 className="font-display text-2xl font-bold mb-2">விளையாட்டு முடிந்தது</h2>
-              <div className="text-4xl font-bold text-primary mb-1">{score}/10</div>
+              <div className="text-4xl font-bold text-primary mb-1">{score}/100</div>
               <p className="text-muted-foreground">
                 <strong>{schoolName}</strong> — மொத்த மதிப்பெண்
               </p>
             </CardContent>
           </Card>
-          {renderCorrectAnswersJSX()}
+          {renderDifferenceJSX()}
         </div>
       )}
     </div>

@@ -1,6 +1,21 @@
+/* Remove button for animal in drop zone */
+.animal-remove-btn {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 2;
+}
+.animal-tag:hover .animal-remove-btn {
+  display: inline;
+}
+/* Custom timer warning color */
+.dt-timer-warning {
+  color: #64748b;
+}
 /* Custom select options: white background for dropdown */
 .custom-select-white-options option {
-  background: #fff;
+  background:  rgb(43, 18, 132);
   color: #222;
 }
 /* ── Dichotomous Tree Page ── */
@@ -73,8 +88,8 @@
   padding: 2px 8px;
   border-radius: 9999px;
   font-size: 0.75rem;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3));
-  color: #fbbf24;
+  background: linear-gradient(135deg, rgba(207, 178, 103, 0.3), rgba(245, 158, 11, 0.3));
+  color: rgb(161 179 219);
   border: 1px solid rgba(251, 191, 36, 0.3);
   cursor: grab;
   user-select: none;
@@ -126,6 +141,7 @@
   text-align: center;
   font-size: 0.75rem;
   color: #64748b;
+  background: #64748b;
   min-height: 32px;
   display: flex;
   align-items: center;
@@ -150,7 +166,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-  color: white;
+  color: rgb(33, 64, 204);
   border: none;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -158,7 +174,7 @@
 }
 .split-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 20px rgba(89, 131, 199, 0.4);
 }
 .split-btn:disabled {
   opacity: 0.4;
