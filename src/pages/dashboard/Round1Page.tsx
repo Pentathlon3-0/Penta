@@ -4,6 +4,21 @@ import { useAuth } from "../../hooks/useAuth";
 import "../../Styles/Round1Page.css";
 import { supabase } from "../../integrations/supabase/client";
 import Round1SummaryPage from "./Round1SummaryPage"; // reuse component
+import { Button } from "../../components/ui/button";
+
+async function upsertKnockoutScore({ roundId, teamId, playerId, points }) {
+  const { error } = await supabase
+    .from("scores")
+    .upsert({
+      round_id: roundId,
+      team_id: teamId,
+      player_id: playerId,
+      points: points,
+    }, { onConflict: "round_id,team_id,player_id" });
+  if (error) {
+    console.error("Failed to upsert knockout score:", error);
+  }
+}
 
 type Team = {
   id: string;
@@ -37,6 +52,7 @@ const Round1Page = () => {
   const [round1Locked, setRound1Locked] = useState(false);
   const [round2Locked, setRound2Locked] = useState(false);
   const [showSummary, setShowSummary] = useState(false); // controls modal
+
 
   useEffect(() => {
     loadEverything();
@@ -212,7 +228,7 @@ const Round1Page = () => {
 
     // update live score row as the user clicks circles
     const liveData = updated[teamIndex];
-    const pts = Math.round(calculateRound1Total(teamIndex) * 100);
+    const pts = Math.round(calculateRound1Total(teamIndex) *40);
     updateLiveScore(team.id, { round1_live: liveData, round1_final: pts });
   };
 
@@ -249,7 +265,7 @@ const Round1Page = () => {
     const inserts = teams.map((team, index) => ({
       round_id: roundId,
       team_id: team.id,
-      points: Math.round(calculateRound1Total(index) * 100)
+      points: Math.round(calculateRound1Total(index) * 40)
     }));
 
     await supabase.from("scores").insert(inserts);
@@ -259,7 +275,7 @@ const Round1Page = () => {
 
     // after the batch insert also refresh the live‑score rows for each team
     teams.forEach((team, index) => {
-      const pts = Math.round(calculateRound1Total(index) * 100);
+      const pts = Math.round(calculateRound1Total(index) * 40);
       updateLiveScore(team.id, { round1_final: pts });
     });
 
@@ -314,6 +330,11 @@ const Round1Page = () => {
     alert("✅ Round 2 saved");
   };
 
+  // Utility to clamp a score to a maximum of 100
+  function clampScore(score) {
+    return Math.min(score, 100);
+  }
+
   return (
     <div className="round1-bg">
       <div className="round1-card">
@@ -321,7 +342,7 @@ const Round1Page = () => {
         {/* only show round 1 form if not yet locked */}
         {!round1Locked && (
           <> 
-            <h2>Knock Out Round 1</h2>
+            <h2>Quiz Storm</h2>
 
             {/* ===== ROUND 1 TABLE ===== */}
             <div className="round-table">
@@ -385,7 +406,7 @@ const Round1Page = () => {
         {/* ===== ROUND 2 ===== */}
         {round1Locked && (
           <div className="section-gap">
-            <h2>Knock Out Round 2</h2>
+            <h2>Path Finder</h2>
 
             <div className="round2-table">
               <table>
@@ -479,10 +500,11 @@ const Round1Page = () => {
                   className="finish-btn"
                   onClick={() => setRound1Locked(false)}
                 >
-                  EDIT ROUND 1
+                  EDIT Quiz Strom
                 </button>
               </div>
             )}
+
           </div>
         )}
       </div>
@@ -495,8 +517,12 @@ const Round1Page = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };
 
 export default Round1Page;
+
+// Add a placeholder for knockout2RoundId (replace with actual logic or prop)
+const knockout2RoundId = "REPLACE_WITH_KNOCKOUT2_ROUND_ID"; // TODO: set this to the actual round 2 id

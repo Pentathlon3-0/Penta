@@ -49,7 +49,7 @@ const LivescorePage = () => {
     const { data: schoolsData } = await (supabase.from("teams").select("id, name, logo_path") as any);
     const { data: liveData } = await ((supabase as any)
       .from("livescore")
-      .select("school_id, round2_final, qualifier_round1_final, qualifier_round2_final") as any);
+      .select("school_id, round1_final,round2_final, qualifier_round1_final, qualifier_round2_final") as any);
 
     if (!schoolsData || !liveData) {
       setLoading(false);
