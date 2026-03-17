@@ -319,11 +319,10 @@ const Round1Page = () => {
     }));
     await (supabase as any).from("round1_details").upsert(detailRows, { onConflict: "team_id" });
 
-    // update live table with combined totals
+    // update live table with knockout round 2 score only
     teams.forEach((team, index) => {
-      const ko1 = ko1Scores.find(s => s.team_id === team.id)?.points || 0;
       const ko2 = Number(round2Scores[index] || 0);
-      updateLiveScore(team.id, { round2_final: ko1 + ko2 });
+      updateLiveScore(team.id, { round2_final: ko2 });
     });
 
     setRound2Locked(true);

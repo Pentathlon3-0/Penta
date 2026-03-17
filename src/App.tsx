@@ -27,6 +27,7 @@ import PlayerPerformancePage from "@/pages/dashboard/PlayerPerformancePage";
 import SchoolQuizProgressPage from "@/pages/dashboard/SchoolQuizProgressPage";
 import ExpectedOutputPage from "@/pages/dashboard/ExpectedOutputPage";
 import EditQuestionPage from "@/pages/dashboard/EditQuestionPage";
+import EditKnockoutScores from "@/pages/dashboard/EditKnockoutScores";
 import DichotomousAdminPage from "@/pages/dashboard/DichotomousAdminPage";
 
 import DichotomousScoreboardPage from "@/pages/dashboard/DichotomousScoreboardPage";
@@ -85,6 +86,7 @@ const App = () => (
               <Route path="expected-output" element={<ExpectedOutputPage />} />
               {/* admin-only pages */}
               <Route path="edit-question" element={<EditQuestionPage />} />
+              <Route path="edit-knockout-scores" element={<EditKnockoutScores />} />
               <Route path="dichotomous-admin" element={<DichotomousAdminPage />} />
               <Route path="dichotomous-scoreboard" element={<DichotomousScoreboardPage />} />
               <Route path="team-setup" element={<TeamSetupPage />} />

@@ -49,7 +49,7 @@ const LivescorePage = () => {
     const { data: schoolsData } = await (supabase.from("teams").select("id, name, logo_path") as any);
     const { data: liveData } = await ((supabase as any)
       .from("livescore")
-      .select("school_id, round1_final,round2_final, qualifier_round1_final, qualifier_round2_final") as any);
+      .select("school_id, round1_final,round2_live, qualifier_round1_final, qualifier_round2_final") as any);
 
     if (!schoolsData || !liveData) {
       setLoading(false);
@@ -59,7 +59,7 @@ const LivescorePage = () => {
     const result: SchoolScore[] = schoolsData.map((school: any) => {
       const live = liveData.find((l: any) => l.school_id === school.id) || {};
       const r1 = live.round1_final || 0;
-      const r2 = live.round2_final || 0;
+      const r2 = live.round2_live || 0;
       const q1 = live.qualifier_round1_final || 0;
       const q2 = live.qualifier_round2_final || 0;
       const total = r1 + r2 + q1 + q2;
