@@ -26,7 +26,7 @@ export default function CodingPage() {
   const { schoolName: urlSchoolName } = useParams<{ schoolName: string }>();
   const navigate = useNavigate();
   const [schoolNameInput, setSchoolNameInput] = useState("");
-  const [availableSchools, setAvailableSchools] = useState<string[]>([]);
+  const [schoolOptions, setSchoolOptions] = useState<string[]>([]);
 
   // question data from DB
   const [question, setQuestion] = useState<QuestionRow | null>(null);
@@ -50,31 +50,31 @@ export default function CodingPage() {
 
   // Fetch available school list (top4 qualifiers) and question + blanks
   useEffect(() => {
-    // load the top4 schools for selector
-    const loadTopSchools = async () => {
-      const { data: round } = await supabase
-        .from("rounds")
-        .select("id")
-        .eq("name", "Qualifier 1")
-        .single();
-      if (round?.id) {
-        const { data: scoreRows } = await supabase
-          .from("scores")
-          .select("team_id")
-          .eq("round_id", round.id)
-          .order("points", { ascending: false })
-          .limit(4);
-        const ids = (scoreRows || []).map((r: any) => r.team_id);
+    // Fetch top 5 schools from livescore table by sum of round1_final and round2_final
+    (async () => {
+      const { data: livescoreRows } = await (supabase as any)
+        .from("livescore")
+        .select("school_id, round1_final, round2_final");
+      if (livescoreRows && livescoreRows.length > 0) {
+        // Compute sum and sort
+        const scored = livescoreRows.map((row: any) => ({
+          school_id: row.school_id,
+          total: (row.round1_final || 0) + (row.round2_final || 0)
+        }));
+        scored.sort((a, b) => b.total - a.total);
+        const top5 = scored.slice(0, 5);
+        const ids = top5.map(s => s.school_id);
         if (ids.length) {
           const { data: teams } = await supabase
             .from("teams")
-            .select("name")
+            .select("id, name")
             .in("id", ids);
-          setAvailableSchools((teams || []).map((t: any) => t.name));
+          // Map team names in the same order as top5
+          const idToName = new Map((teams || []).map((t: any) => [t.id, t.name]));
+          setSchoolOptions(ids.map(id => idToName.get(id)).filter(Boolean));
         }
       }
-    };
-    loadTopSchools();
+    })();
 
     if (!urlSchoolName) return;
     const fetchQuestion = async () => {
@@ -429,16 +429,23 @@ export default function CodingPage() {
         <Card className="max-w-md mx-auto animate-scale-in glass-card">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-display">💻 Coding Challenge</CardTitle>
-            <p className="text-muted-foreground text-sm mt-1">Enter your school name to begin the centered paragraph task</p>
+            <p className="text-muted-foreground text-sm mt-1">Select your school to begin the centered paragraph task</p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Input
-              placeholder="Enter School Name"
-              value={schoolNameInput}
-              onChange={(e) => setSchoolNameInput(e.target.value)}
-              className="text-center text-lg"
-            />
-            <Button onClick={handleContinue} className="w-full" size="lg">
+            <div style={{ position: 'relative', marginBottom: 8 }}>
+              <select
+                value={schoolNameInput}
+                onChange={e => setSchoolNameInput(e.target.value)}
+                className="text-center text-lg w-full border rounded p-2 bg-transparent focus:bg-transparent focus:ring-2 focus:ring-primary/40 custom-select-white-options"
+                style={{ minHeight: 48, fontWeight: 'bold', fontSize: '1.1rem', appearance: 'none', cursor: 'pointer' }}
+              >
+                <option value="" disabled>Select School</option>
+                {schoolOptions.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={handleContinue} className="w-full mt-2" size="lg">
               Continue
             </Button>
           </CardContent>
