@@ -209,7 +209,7 @@ const Round2Page = () => {
 
     const sortedTeamIds = Object.entries(totals)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
+      .slice(0, 5)
       .map(x => x[0]);
 
     // fetch team and player rows in parallel
@@ -240,17 +240,13 @@ const Round2Page = () => {
     // load any saved subject details so we can prefill
     const { data: details } = await (supabase as any)
       .from('qualifier1_details')
-      .select('subject, performance, extras, players');
+      .select('subject, performance, extras, players, status');
 
     const finished: Record<string,boolean> = {};
     if (details) {
       details.forEach((d: any) => {
-        // only consider the subject finished if some score/extra data exists
-        const hasScores = Object.values(d.performance || {}).some(
-          (arr: any) => Array.isArray(arr) && arr.length > 0
-        );
-        const hasExtras = Object.values(d.extras || {}).some((v: any) => v !== 0 && v !== "");
-        if (hasScores || hasExtras) {
+        // Always lock if status is true, regardless of teams
+        if (d.status === true) {
           finished[d.subject] = true;
         }
 
@@ -336,16 +332,16 @@ const Round2Page = () => {
       }
     });
 
-    const pts = Math.round(teamTotal(t, updated) * 100);
+    const pts = Math.round(teamTotal(t, updated) );
     updateLiveScore(teams[t].id, {
       qualifier_round1_live: liveObj,
-      qualifier_round1_final: pts
+      qualifier_round1_final: Math.round(teamTotal(t, updated))
     });
   };
 
   const subjectTotal = (m: SubjectScore) => {
     const extra = m.extra === "" ? 0 : m.extra;
-    return m.circles.length * 2 + extra;
+    return m.circles.length * 2 + extra * m.circles.length;
   };
 
   const teamTotal = (t: number, arr?: SubjectScore[][]) => {
@@ -355,7 +351,7 @@ const Round2Page = () => {
       const credit = SUBJECTS[si].credit;
       sum += subjectTotal(m) * credit;
     });
-    return Number((sum / 10).toFixed(2));
+    return Number((sum).toFixed(2));
   };
 
   const getOrCreateRound = async (roundName: string) => {
@@ -386,35 +382,21 @@ const Round2Page = () => {
       }
     }
 
-    const roundId = await getOrCreateRound("Qualifier 1");
-
-    // remove any previous entries for this round/teams
-    const teamIds = teams.map(t => t.id);
-    await supabase.from("scores").delete().eq("round_id", roundId).in("team_id", teamIds);
-
-    const inserts = teams.map((team, t) => ({
-      round_id: roundId,
-      team_id: team.id,
-      player_id: scores[t][si].playerId,
-      points: Math.round(subjectTotal(scores[t][si]) * 100) // scaled int
-    }));
-
-    await supabase.from("scores").insert(inserts);
-
-    // persist subject-level JSON details as requested
-    await upsertSubjectDetail(si);
-
-    // mark finished immediately so UI disables
+    // Immediately lock the subject in UI
     setFinishedSubjects(prev => ({ ...prev, [SUBJECTS[si].key]: true }));
+
+    // persist subject-level JSON details as requested, set status true
+    await upsertSubjectDetail(si, true);
 
     // update running totals (optional)
     setTeamTotals(prev =>
       prev.map((v, t) => teamTotal(t))
     );
+    // No scores table update here; handled by new button
   };
 
   // helper to persist detail info per subject
-  const upsertSubjectDetail = async (si: number) => {
+  const upsertSubjectDetail = async (si: number, status: boolean = false) => {
     const key = SUBJECTS[si].key;
     const performance: Record<string, number[]> = {};
     const extras: Record<string, number> = {};
@@ -432,7 +414,8 @@ const Round2Page = () => {
         subject: key,
         performance,
         extras,
-        players
+        players,
+        status
       }, { onConflict: 'subject' });
 
     // debug: confirm persistence
@@ -441,7 +424,6 @@ const Round2Page = () => {
       console.error("Failed to upsert qualifier1_details", error);
     }
   };
-
   /* ================= SAVE QUALIFIER ROUND 2 ================= */
   const finishRound2 = async () => {
     setRound2Locked(true);
@@ -488,6 +470,39 @@ const Round2Page = () => {
         <h2>Qualifier Round 1</h2>
 
         {(!allSubjectsDone || showRound1) && SUBJECTS.map((s, si) => {
+                  {/* Knockout Round 1 Finished button always visible at bottom, enabled only when all subjects are finished */}
+                  {showRound1 && (
+                    <button
+                      className="finish-btn left"
+                      disabled={!SUBJECTS.every(s => finishedSubjects[s.key])}
+                      onClick={async () => {
+                        if (!SUBJECTS.every(s => finishedSubjects[s.key])) return;
+                        // Update scores table for each school
+                        const roundId = await getOrCreateRound("Qualifier 1");
+                        const teamIds = teams.map(t => t.id);
+                        await supabase.from("scores").delete().eq("round_id", roundId).in("team_id", teamIds);
+                        const inserts = teams.map((team, t) => {
+                          let total = 0;
+                          scores[t].forEach((m, si2) => {
+                            const credit = SUBJECTS[si2].credit;
+                            const extra = m.extra === "" ? 0 : m.extra;
+                            total += (m.circles.length * 2 + extra * m.circles.length) * credit;
+                          });
+                          return {
+                            round_id: roundId,
+                            team_id: team.id,
+                            points: Math.round(total), // not multiplied by 100
+                          };
+                        });
+                        await supabase.from("scores").insert(inserts);
+                        // Hide round 1 and show round 2
+                        setShowRound1(false);
+                      }}
+                      style={{ marginTop: 24 }}
+                    >
+                      KNOCKOUT ROUND 1 FINISHED
+                    </button>
+                  )}
           const isExpanded = expandedSubject === si;
           return (
             <div key={si} className="team-section">
@@ -518,103 +533,112 @@ const Round2Page = () => {
                           <td>{team.name}</td>
 
                           <td>
-                            <select
-                              className="glass-select subject-select"
-                              disabled={lockedTeams[t] || finishedSubjects[SUBJECTS[si].key]}
-                              value={scores[t][si].playerId}
-                              onChange={async e => {
-                                setScores(prev =>
-                                  prev.map((teamArr, ti) =>
+                            {scores[t] && scores[t][si] ? (
+                              <select
+                                className="glass-select subject-select"
+                                disabled={lockedTeams[t] || finishedSubjects[SUBJECTS[si].key]}
+                                value={scores[t][si].playerId}
+                                onChange={async e => {
+                                  if (finishedSubjects[SUBJECTS[si].key]) return;
+                                  setScores(prev =>
+                                    prev.map((teamArr, ti) =>
+                                      ti !== t
+                                        ? teamArr
+                                        : teamArr.map((mem, mi) =>
+                                            mi !== si
+                                              ? mem
+                                              : ({ ...mem, playerId: e.target.value } as SubjectScore)
+                                          )
+                                    )
+                                  );
+                                  await upsertSubjectDetail(si);
+                                }}
+                              >
+                                <option value="" disabled hidden>Select player</option>
+                                {team.members
+                                  .filter(m => {
+                                    if (!scores[t]) return true;
+                                    const chosen = scores[t]
+                                      .map((x, idx) => (idx === si ? "" : (x ? x.playerId : "")))
+                                      .filter(id => id);
+                                    return !chosen.includes(m.id);
+                                  })
+                                  .map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : <span />} 
+                          </td>
+
+                          <td>
+                            {scores[t] && scores[t][si] ? (
+                              <div className="circle-group">
+                                {[0, 1, 2, 3, 4].map(c => {
+                                  const takenByOther = scores.some((teamArr, ti) => ti !== t && teamArr && teamArr[si] && teamArr[si].circles && teamArr[si].circles.includes(c));
+                                  return (
+                                    <div
+                                      key={c}
+                                      className={`circle ${
+                                        scores[t][si].circles.includes(c) ? "active" : ""
+                                      } ${takenByOther ? "disabled" : ""}`}
+                                      onClick={() => {
+                                        if (finishedSubjects[SUBJECTS[si].key] || takenByOther) return;
+                                        toggleCircle(t, si, c);
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            ) : <span />} 
+                          </td>
+
+                          <td>
+                            {scores[t] && scores[t][si] ? (
+                              <input
+                                type="number"
+                                className="extra-input"
+                                disabled={lockedTeams[t] || finishedSubjects[SUBJECTS[si].key]}
+                                value={scores[t][si].extra}
+                                placeholder=""
+                                onChange={async e => {
+                                  if (finishedSubjects[SUBJECTS[si].key]) return;
+                                  const newVal = e.target.value === "" ? "" : Number(e.target.value);
+                                  // build updated scores array ourselves so we can use it immediately
+                                  const updated = scores.map((teamArr, ti) =>
                                     ti !== t
                                       ? teamArr
                                       : teamArr.map((mem, mi) =>
                                           mi !== si
                                             ? mem
-                                            : ({ ...mem, playerId: e.target.value } as SubjectScore)
+                                            : ({
+                                                ...mem,
+                                                extra: newVal
+                                              } as SubjectScore)
                                         )
-                                  )
-                                );
-                                await upsertSubjectDetail(si);
-                              }}
-                            >
-                              <option value="" disabled hidden>Select player</option>
-                              {team.members
-                                .filter(m => {
-                                  const chosen = scores[t]
-                                    .map((x, idx) => (idx === si ? "" : x.playerId))
-                                    .filter(id => id);
-                                  return !chosen.includes(m.id);
-                                })
-                                .map(m => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.name}
-                                  </option>
-                                ))}
-                            </select>
+                                  );
+
+                                  setScores(updated);
+                                  await upsertSubjectDetail(si);
+
+                                  // refresh final score after extra change; also update live payload using updated
+                                  const pts = Math.round(teamTotal(t, updated) * 100);
+                                  const liveObj: any = {};
+                                  SUBJECTS.forEach((sub, j) => {
+                                    const ci = updated[t][j].circles;
+                                    if (ci.length) liveObj[sub.key] = ci.slice();
+                                    const ex = updated[t][j].extra;
+                                    if (ex !== "" && ex !== 0) liveObj[`${sub.key}extra`] = ex;
+                                  });
+                                  updateLiveScore(teams[t].id, { qualifier_round1_final: Math.round(teamTotal(t, updated)), qualifier_round1_live: liveObj });
+                                }
+                                }
+                              />
+                            ) : <span />} 
                           </td>
 
-                          <td>
-                            <div className="circle-group">
-                              {[0, 1, 2, 3, 4].map(c => {
-                                const takenByOther = scores.some((team, ti) => ti !== t && team[si].circles.includes(c));
-                                return (
-                                  <div
-                                    key={c}
-                                    className={`circle ${
-                                      scores[t][si].circles.includes(c) ? "active" : ""
-                                    } ${takenByOther ? "disabled" : ""}`}
-                                    onClick={() => {
-                                      if (finishedSubjects[SUBJECTS[si].key] || takenByOther) return;
-                                      toggleCircle(t, si, c);
-                                    }}
-                                  />
-                                );
-                          })}
-                            </div>
-                          </td>
-
-                          <td>
-                            <input
-                              type="number"
-                              className="extra-input"
-                              disabled={lockedTeams[t] || finishedSubjects[SUBJECTS[si].key]}
-                              value={scores[t][si].extra}
-                              placeholder=""
-                              onChange={async e => {
-                                const newVal = e.target.value === "" ? "" : Number(e.target.value);
-                                // build updated scores array ourselves so we can use it immediately
-                                const updated = scores.map((teamArr, ti) =>
-                                  ti !== t
-                                    ? teamArr
-                                    : teamArr.map((mem, mi) =>
-                                        mi !== si
-                                          ? mem
-                                          : ({
-                                              ...mem,
-                                              extra: newVal
-                                            } as SubjectScore)
-                                      )
-                                );
-
-                                setScores(updated);
-                                await upsertSubjectDetail(si);
-
-                                // refresh final score after extra change; also update live payload using updated
-                                const pts = Math.round(teamTotal(t, updated) * 100);
-                                const liveObj: any = {};
-                                SUBJECTS.forEach((sub, j) => {
-                                  const ci = updated[t][j].circles;
-                                  if (ci.length) liveObj[sub.key] = ci.slice();
-                                  const ex = updated[t][j].extra;
-                                  if (ex !== "" && ex !== 0) liveObj[`${sub.key}extra`] = ex;
-                                });
-                                updateLiveScore(teams[t].id, { qualifier_round1_final: pts, qualifier_round1_live: liveObj });
-                              }
-                              }
-                            />
-                          </td>
-
-                          <td>{subjectTotal(scores[t][si])}</td>
+                          <td>{scores[t] && scores[t][si] ? subjectTotal(scores[t][si]) : 0}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -623,7 +647,7 @@ const Round2Page = () => {
                   {
                     // determine whether all teams have selected a player for this subject
                     (() => {
-                      const allHavePlayers = teams.every((team, t) => scores[t][si].playerId);
+                      const allHavePlayers = teams.every((team, t) => scores[t] && scores[t][si] && scores[t][si].playerId);
                       return (
                         <button
                           className="finish-btn left"
@@ -632,8 +656,9 @@ const Round2Page = () => {
                             finishedSubjects[SUBJECTS[si].key] || !allHavePlayers
                           }
                           title={
-                            !allHavePlayers &&
-                            "Every team must choose a player before finishing"
+                            !allHavePlayers
+                              ? "Every team must choose a player before finishing"
+                              : undefined
                           }
                         >
                           {finishedSubjects[SUBJECTS[si].key]
