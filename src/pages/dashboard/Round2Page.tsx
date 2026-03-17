@@ -389,10 +389,34 @@ const Round2Page = () => {
     await upsertSubjectDetail(si, true);
 
     // update running totals (optional)
-    setTeamTotals(prev =>
-      prev.map((v, t) => teamTotal(t))
-    );
-    // No scores table update here; handled by new button
+    setTeamTotals(prev => prev.map((v, t) => teamTotal(t)));
+
+    // Insert scores for each team for this subject
+    const roundId = await getOrCreateRound("Qualifier 1");
+
+    // Remove any existing scores for this round/team/subject
+    await supabase
+      .from("scores")
+      .delete()
+      .match({
+        round_id: roundId,
+        subject: SUBJECTS[si].key
+      });
+
+    // Insert new scores
+    const inserts = teams.map((team, t) => {
+      const m = scores[t][si];
+      const credit = SUBJECTS[si].credit;
+      const extra = m.extra === "" ? 0 : m.extra;
+      const total = (m.circles.length * 2 + extra * m.circles.length) * credit;
+      return {
+        round_id: roundId,
+        team_id: team.id,
+        subject: SUBJECTS[si].key,
+        points: Math.round(total),
+      };
+    });
+    await supabase.from("scores").insert(inserts);
   };
 
   // helper to persist detail info per subject
