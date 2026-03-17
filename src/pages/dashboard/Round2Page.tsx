@@ -163,13 +163,37 @@ const Round2Page = () => {
 
   const [round2Scores, setRound2Scores] = useState<(number | "")[]>([]);
   const [round2Locked, setRound2Locked] = useState(false);
+  const [qualifierRound2Status, setQualifierRound2Status] = useState(false);
 
   // collapsed list: only subject names shown until expanded
   const [expandedSubject, setExpandedSubject] = useState<number | null>(null);
 
   useEffect(() => {
     loadQualifiedTeams();
+    fetchQualifierRound2Status();
   }, []);
+
+  const fetchQualifierRound2Status = async () => {
+    const { data, error } = await (supabase.from("qualifier_round2_status" as any) as any)
+      .select("qualifier_round2_status")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching qualifier_round2_status:", error);
+      return;
+    }
+
+    if (!data) {
+      // Insert a default row if none exists
+      await (supabase.from("qualifier_round2_status" as any) as any)
+        .insert({ qualifier_round2_status: false });
+      setQualifierRound2Status(false);
+    } else if (typeof data.qualifier_round2_status === "boolean") {
+      setQualifierRound2Status(data.qualifier_round2_status);
+    }
+  };
 
   const loadQualifiedTeams = async () => {
     // fetch both round records in one request
@@ -278,7 +302,7 @@ const Round2Page = () => {
       return row ? row.qualifier_round2_final : "";
     });
 
-    setRound2Scores(r2scores);
+    setRound2Scores(r2scores.map(v => v === undefined ? "" : v));
   };
 
   // keep round1Finished flag in sync with subjects or locked teams
@@ -481,6 +505,20 @@ const Round2Page = () => {
         brain_maze_score: 0
       });
     }
+
+    // Set qualifier_round2_status to true in qualifier_round2_status
+    const { data } = await (supabase.from("qualifier_round2_status" as any) as any)
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data && data.id) {
+      await (supabase.from("qualifier_round2_status" as any) as any)
+        .update({ qualifier_round2_status: true })
+        .eq("id", data.id);
+      setQualifierRound2Status(true);
+    }
   };
 
   /* ================= UI (100% UNCHANGED) ================= */
@@ -624,7 +662,7 @@ const Round2Page = () => {
                                 type="number"
                                 className="extra-input"
                                 disabled={lockedTeams[t] || finishedSubjects[SUBJECTS[si].key]}
-                                value={scores[t][si].extra}
+                                value={typeof scores[t][si].extra === "undefined" ? "" : scores[t][si].extra}
                                 placeholder=""
                                 onChange={async e => {
                                   if (finishedSubjects[SUBJECTS[si].key]) return;
@@ -656,8 +694,7 @@ const Round2Page = () => {
                                     if (ex !== "" && ex !== 0) liveObj[`${sub.key}extra`] = ex;
                                   });
                                   updateLiveScore(teams[t].id, { qualifier_round1_final: Math.round(teamTotal(t, updated)), qualifier_round1_live: liveObj });
-                                }
-                                }
+                                }}
                               />
                             ) : <span />} 
                           </td>
@@ -728,18 +765,18 @@ const Round2Page = () => {
                   <input
                     type="number"
                     className="qr2-score-input oval"
-                    disabled={round2Locked}
-                    value={round2Scores[i]}
+                    value={typeof round2Scores[i] === "undefined" ? "" : round2Scores[i]}
                     onChange={e => {
+                      if (qualifierRound2Status) return;
                       const copy = [...round2Scores];
-                      copy[i] =
-                        e.target.value === "" ? "" : Number(e.target.value);
+                      copy[i] = e.target.value === "" ? "" : Number(e.target.value);
                       setRound2Scores(copy);
 
                       // persist live score immediately
                       const pts = Math.round(Number(copy[i] || 0));
                       updateLiveScore(teams[i].id, { qualifier_round2_final: pts });
                     }}
+                    disabled={qualifierRound2Status}
                   />
                 </div>
               ))}
@@ -749,9 +786,9 @@ const Round2Page = () => {
               <button
                 className="finish-btn"
                 onClick={finishRound2}
-                disabled={round2Locked}
+                disabled={qualifierRound2Status}
               >
-                {round2Locked ? "ROUND 2 FINISHED" : "FINISH ROUND 2"}
+                {qualifierRound2Status ? "ROUND 2 FINISHED" : "FINISH ROUND 2"}
               </button>
 
 
