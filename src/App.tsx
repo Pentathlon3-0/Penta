@@ -45,6 +45,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter
+          basename="/Pentathlon3-0"
           future={{
             v7_relativeSplatPath: true,
             v7_startTransition: true,
