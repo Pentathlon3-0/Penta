@@ -493,16 +493,7 @@ const Round1Page = () => {
               </div>
             )}
             {/* allow editing round1 even after it's been saved (before round2) */}
-            {round1Locked && !round2Locked && (
-              <div className="left-actions">
-                <button
-                  className="finish-btn"
-                  onClick={() => setRound1Locked(false)}
-                >
-                  EDIT Quiz Strom
-                </button>
-              </div>
-            )}
+            // ...existing code...
 
           </div>
         )}
