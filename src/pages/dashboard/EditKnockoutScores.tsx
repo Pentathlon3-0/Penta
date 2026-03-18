@@ -1,4 +1,291 @@
 import React, { useEffect, useState } from "react";
+import { getTop3TeamsFromLivescore } from "./utils/getTop3Teams";
+import "../../Styles/Round3Page.css";
+// --- Final Round Edit Component ---
+type Team = {
+  id: string;
+  name: string;
+  members: { id: string; name: string }[];
+};
+type CircleState = "empty" | "green" | "red";
+const ROWS = 5;
+const COLS = 5;
+const createRow = (): CircleState[] => Array(COLS).fill("empty");
+
+function FinalRoundEdit({ onClose }: { onClose: () => void }) {
+  const [team1, setTeam1] = useState<Team | null>(null);
+  const [team2, setTeam2] = useState<Team | null>(null);
+  const [team3, setTeam3] = useState<Team | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [round1, setRound1] = useState<{ t1: number | ""; t2: number | ""; t3: number | "" }>({ t1: "", t2: "", t3: "" });
+  const [round2, setRound2] = useState<{ t1: number | ""; t2: number | ""; t3: number | "" }>({ t1: "", t2: "", t3: "" });
+  const [team1Circles, setTeam1Circles] = useState<CircleState[][]>(Array.from({ length: ROWS }, createRow));
+  const [team2Circles, setTeam2Circles] = useState<CircleState[][]>(Array.from({ length: ROWS }, createRow));
+  const [team3Circles, setTeam3Circles] = useState<CircleState[][]>(Array.from({ length: ROWS }, createRow));
+  const [team1Selected, setTeam1Selected] = useState<string[]>(Array(ROWS).fill(""));
+  const [team2Selected, setTeam2Selected] = useState<string[]>(Array(ROWS).fill(""));
+  const [team3Selected, setTeam3Selected] = useState<string[]>(Array(ROWS).fill(""));
+  const [expandedBuzzerTeam, setExpandedBuzzerTeam] = useState<1 | 2 | 3 | null>(1);
+  const [status, setStatus] = useState({ clever_mind_finished: false, brain_maze_finished: false, buzzer_finished: false });
+  useEffect(() => {
+    // On mount, set all booleans to false
+    (async () => {
+      await (supabase as any).from("final_round_status").update({ clever_mind_finished: false, brain_maze_finished: false, buzzer_finished: false }).eq("id", 1);
+      setStatus({ clever_mind_finished: false, brain_maze_finished: false, buzzer_finished: false });
+    })();
+    // Load teams and scores
+    (async () => {
+      setLoading(true);
+      try {
+        const top3 = await getTop3TeamsFromLivescore();
+        if (!top3 || top3.length < 3) throw new Error("Not enough teams");
+        const loadTeam = async (team: any): Promise<Team> => {
+          const { data: members } = await supabase.from("players").select("id, name").eq("team_id", team.id);
+          return { id: team.id, name: team.name, members: members?.map((m: any) => ({ id: m.id, name: m.name })) || [] };
+        };
+        setTeam1(await loadTeam(top3[0]));
+        setTeam2(await loadTeam(top3[1]));
+        setTeam3(await loadTeam(top3[2]));
+        // Load round scores
+        const ids = [top3[0].id, top3[1].id, top3[2].id];
+        const { data } = await (supabase as any).from("final_round").select("school_id, clever_mind_score, brain_maze_score, buzar_performance").in("school_id", ids);
+        setRound1({
+          t1: data?.find((row: any) => row.school_id === top3[0].id)?.clever_mind_score ?? "",
+          t2: data?.find((row: any) => row.school_id === top3[1].id)?.clever_mind_score ?? "",
+          t3: data?.find((row: any) => row.school_id === top3[2].id)?.clever_mind_score ?? "",
+        });
+        setRound2({
+          t1: data?.find((row: any) => row.school_id === top3[0].id)?.brain_maze_score ?? "",
+          t2: data?.find((row: any) => row.school_id === top3[1].id)?.brain_maze_score ?? "",
+          t3: data?.find((row: any) => row.school_id === top3[2].id)?.brain_maze_score ?? "",
+        });
+        // Load buzzer state
+        const loadBuzzer = (teamId: string, setCircles: any, setSelected: any) => {
+          const row = data?.find((row: any) => row.school_id === teamId);
+          if (!row?.buzar_performance) return;
+          const perf = row.buzar_performance;
+          const selected: string[] = Array(ROWS).fill("");
+          const circles: CircleState[][] = Array.from({ length: ROWS }, createRow);
+          let rowIdx = 0;
+          Object.entries(perf).forEach(([playerId, val]: any) => {
+            if (rowIdx < ROWS) {
+              selected[rowIdx] = playerId;
+              val.correct?.forEach((c: number) => { circles[rowIdx][c] = "green"; });
+              val.wrong?.forEach((c: number) => { circles[rowIdx][c] = "red"; });
+              rowIdx++;
+            }
+          });
+          setSelected(selected);
+          setCircles(circles);
+        };
+        loadBuzzer(top3[0].id, setTeam1Circles, setTeam1Selected);
+        loadBuzzer(top3[1].id, setTeam2Circles, setTeam2Selected);
+        loadBuzzer(top3[2].id, setTeam3Circles, setTeam3Selected);
+      } catch (e: any) {
+        setError(e.message);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Save helpers
+  const saveFinalRoundScore = async (school_id: string, field: "clever_mind_score" | "brain_maze_score", value: number) => {
+    const clever = field === "clever_mind_score" ? value : round1[[team1?.id, team2?.id, team3?.id].indexOf(school_id) === 0 ? "t1" : [team1?.id, team2?.id, team3?.id].indexOf(school_id) === 1 ? "t2" : "t3"] || 0;
+    const brain = field === "brain_maze_score" ? value : round2[[team1?.id, team2?.id, team3?.id].indexOf(school_id) === 0 ? "t1" : [team1?.id, team2?.id, team3?.id].indexOf(school_id) === 1 ? "t2" : "t3"] || 0;
+    await (supabase as any).from("final_round").upsert({ school_id, clever_mind_score: clever, brain_maze_score: brain });
+  };
+  function buildBuzarPerformance(circles: CircleState[][], selected: string[], team: Team) {
+    const perf: Record<string, { correct: number[]; wrong: number[] }> = {};
+    for (let r = 0; r < ROWS; r++) {
+      const playerId = selected[r];
+      if (!playerId) continue;
+      if (!perf[playerId]) perf[playerId] = { correct: [], wrong: [] };
+      for (let c = 0; c < COLS; c++) {
+        if (circles[r][c] === "green") perf[playerId].correct.push(c);
+        if (circles[r][c] === "red") perf[playerId].wrong.push(c);
+      }
+    }
+    return perf;
+  }
+  async function saveBuzar(team: Team, circles: CircleState[][], selected: string[]) {
+    const perf = buildBuzarPerformance(circles, selected, team);
+    let correct = 0, wrong = 0;
+    Object.values(perf).forEach(p => { correct += p.correct.length; wrong += p.wrong.length; });
+    const score = correct * 20 - wrong * 10;
+    await (supabase as any).from("final_round").upsert({ school_id: team.id, buzar_performance: perf, buzar_score: score });
+  }
+  // Save round status
+  const saveStatus = async (field: "clever_mind_finished" | "brain_maze_finished" | "buzzer_finished") => {
+    await (supabase as any).from("final_round_status").update({ [field]: true }).eq("id", 1);
+    setStatus(s => ({ ...s, [field]: true }));
+  };
+
+  if (loading) return <div style={{ color: "#fff", textAlign: "center" }}>Loading Final Round Edit...</div>;
+  if (error) return <div style={{ color: "#fff", textAlign: "center" }}>{error}</div>;
+  if (!team1 || !team2 || !team3) return <div style={{ color: "#fff", textAlign: "center" }}>No teams found</div>;
+
+  return (
+    <div className="round2-bg">
+      <div className="round2-card">
+        <h2 className="final-round-title">Edit Final Round</h2>
+        <h3 className="round-title">Clever Minds</h3>
+        <div className="round-section">
+          <div className="teams-grid">
+            {[team1, team2, team3].map((team, idx) => (
+              <div className="team-column" key={team.id}>
+                <span className="team-name">{team.name}</span>
+                <input
+                  className="glass-score"
+                  type="number"
+                  value={round1[`t${idx + 1}`]}
+                  onChange={e => {
+                    const val = Number(e.target.value) || "";
+                    setRound1(prev => ({ ...prev, [`t${idx + 1}`]: val }));
+                    if (val !== "") saveFinalRoundScore(team.id, "clever_mind_score", Number(val));
+                  }}
+                  disabled={status.clever_mind_finished}
+                  placeholder="Score"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="round-btn-row">
+            <button
+              className={`round-finish-btn ${status.clever_mind_finished ? "finished" : ""}`}
+              onClick={() => saveStatus("clever_mind_finished")}
+              disabled={status.clever_mind_finished}
+            >
+              {status.clever_mind_finished ? "Saved" : "Save Edit"}
+            </button>
+          </div>
+        </div>
+        <h3 className="round-title">Brain maze</h3>
+        <div className="round-section">
+          <div className="teams-grid">
+            {[team1, team2, team3].map((team, idx) => (
+              <div className="team-column" key={team.id}>
+                <span className="team-name">{team.name}</span>
+                <input
+                  className="glass-score"
+                  type="number"
+                  value={round2[`t${idx + 1}`]}
+                  onChange={e => {
+                    const val = Number(e.target.value) || "";
+                    setRound2(prev => ({ ...prev, [`t${idx + 1}`]: val }));
+                    if (val !== "") saveFinalRoundScore(team.id, "brain_maze_score", Number(val));
+                  }}
+                  disabled={status.brain_maze_finished}
+                  placeholder="Score"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="round-btn-row">
+            <button
+              className={`round-finish-btn ${status.brain_maze_finished ? "finished" : ""}`}
+              onClick={() => saveStatus("brain_maze_finished")}
+              disabled={status.brain_maze_finished}
+            >
+              {status.brain_maze_finished ? "Saved" : "Save Edit"}
+            </button>
+          </div>
+        </div>
+        <h3 className="round-title">Buzzer Round</h3>
+        <div className="buzzer-container">
+          {[team1, team2, team3].map((team, teamIndex) => {
+            const teamNo = (teamIndex + 1) as 1 | 2 | 3;
+            const selected = teamNo === 1 ? team1Selected : teamNo === 2 ? team2Selected : team3Selected;
+            const setSelected = teamNo === 1 ? setTeam1Selected : teamNo === 2 ? setTeam2Selected : setTeam3Selected;
+            const circles = teamNo === 1 ? team1Circles : teamNo === 2 ? team2Circles : team3Circles;
+            const isExpanded = expandedBuzzerTeam === teamNo;
+            return (
+              <div key={team.id} className="buzzer-team buzzer-accordion-item">
+                <button
+                  type="button"
+                  className={`buzzer-team-toggle ${isExpanded ? "expanded" : ""}`}
+                  onClick={() => setExpandedBuzzerTeam(isExpanded ? null : teamNo)}
+                >
+                  <span>{team.name}</span>
+                  <span className="buzzer-team-toggle-icon">{isExpanded ? "-" : "+"}</span>
+                </button>
+                {isExpanded && (
+                  <div className="buzzer-column">
+                    {Array.from({ length: ROWS }).map((_, r) => (
+                      <div key={r} className="buzzer-row">
+                        <select
+                          className="glass-select"
+                          value={selected[r]}
+                          onChange={e => {
+                            const copy = [...selected];
+                            copy[r] = e.target.value;
+                            setSelected(copy);
+                          }}
+                          disabled={status.buzzer_finished}
+                        >
+                          <option value="" disabled hidden style={{ color: "#0f172a", backgroundColor: "#f8fafc" }}>
+                            Select member
+                          </option>
+                          {team.members
+                            .filter(m => !selected.includes(m.id) || selected[r] === m.id)
+                            .map(m => (
+                              <option
+                                key={m.id}
+                                value={m.id}
+                                style={{ color: "#0f172a", backgroundColor: "#0284c7" }}
+                              >
+                                {m.name}
+                              </option>
+                            ))}
+                        </select>
+                        <div className="circle-row">
+                          {circles[r].map((c, i) => (
+                            <div
+                              key={i}
+                              className={`buzzer-circle ${c}`}
+                              onClick={() => !status.buzzer_finished && (() => {
+                                const setter = teamNo === 1 ? setTeam1Circles : teamNo === 2 ? setTeam2Circles : setTeam3Circles;
+                                const data = teamNo === 1 ? team1Circles : teamNo === 2 ? team2Circles : team3Circles;
+                                const updated = [...data];
+                                updated[r] = [...updated[r]];
+                                updated[r][i] = updated[r][i] === "green" ? "empty" : "green";
+                                setter(updated);
+                                saveBuzar(team, updated, selected);
+                              })()}
+                              onDoubleClick={() => !status.buzzer_finished && (() => {
+                                const setter = teamNo === 1 ? setTeam1Circles : teamNo === 2 ? setTeam2Circles : setTeam3Circles;
+                                const data = teamNo === 1 ? team1Circles : teamNo === 2 ? team2Circles : team3Circles;
+                                const updated = [...data];
+                                updated[r] = [...updated[r]];
+                                updated[r][i] = "red";
+                                setter(updated);
+                                saveBuzar(team, updated, selected);
+                              })()}
+                              style={status.buzzer_finished ? { cursor: "not-allowed", opacity: 0.5 } : {}}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="round-btn-row">
+          <button
+            className={`round-finish-btn ${status.buzzer_finished ? "finished" : ""}`}
+            onClick={() => saveStatus("buzzer_finished")}
+            disabled={status.buzzer_finished}
+          >
+            {status.buzzer_finished ? "Saved" : "Save Edit"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -20,7 +307,7 @@ const EditKnockoutScores: React.FC = () => {
   const [round2Details, setRound2Details] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editType, setEditType] = useState<"round1" | "round2">("round1");
+  const [editType, setEditType] = useState<"round1" | "round2" | "final">("round1");
 
   useEffect(() => {
     if (authenticated) {
@@ -218,8 +505,26 @@ const EditKnockoutScores: React.FC = () => {
         >
           Edit Knockout Round 2
         </button>
+        <button
+          onClick={() => setEditType("final")}
+          style={{
+            padding: '0.5rem 1.5rem',
+            borderRadius: '1.5rem',
+            border: editType === 'final' ? '2px solid #3b82f6' : '2px solid #334155',
+            background: editType === 'final' ? 'rgba(59,130,246,0.15)' : 'rgba(30,41,59,0.5)',
+            color: editType === 'final' ? '#fff' : '#cbd5e1',
+            fontWeight: 600,
+            fontSize: '1rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          Edit Final Round
+        </button>
       </div>
-      {loading ? (
+      {editType === "final" ? (
+        <FinalRoundEdit onClose={() => setEditType("round1")} />
+      ) : loading ? (
         <div>Loading...</div>
       ) : error ? (
         <div className="error">{error}</div>
