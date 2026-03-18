@@ -494,7 +494,16 @@ export default function CodingPage() {
                       <CardTitle className="text-lg">Fill in the blanks</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="font-mono bg-muted p-4 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
+                      <div
+                        className="font-mono bg-muted p-4 rounded-lg text-sm leading-relaxed"
+                        style={{
+                          overflowX: 'auto',
+                          overflowY: 'auto',
+                          whiteSpace: 'pre',
+                          maxWidth: '100%',
+                          maxHeight: '420px',
+                        }}
+                      >
                         {renderCodeWithBlanks()}
                       </div>
 

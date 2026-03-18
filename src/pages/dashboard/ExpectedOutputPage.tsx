@@ -57,23 +57,21 @@ export default function ExpectedOutputPage() {
   if (!question) return <p className="p-8 text-center text-destructive">No question found.</p>;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <Card className="glass-card">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-display">Expected Output</CardTitle>
-          <p className="text-muted-foreground text-sm mt-1">
-            {question.title}{question.description ? ` — ${question.description}` : ""}
-          </p>
-        </CardHeader>
-        <CardContent>
-          <iframe
-            srcDoc={expectedHTML()}
-            title="Expected Output"
-            style={{ width: '100%', height: '250px', border: 'none', borderRadius: '4px' }}
-            sandbox="allow-scripts"
-          />
-        </CardContent>
-      </Card>
+    <div style={{ width: "100%", height: "100vh", margin: 0, padding: 0 }}>
+      <iframe
+        srcDoc={expectedHTML()}
+        title="Expected Output"
+        style={{
+          width: "100%",
+          height: "100vh",
+          border: "none",
+          margin: 0,
+          padding: 0,
+          display: "block",
+          background: "#0f172a"
+        }}
+        sandbox="allow-scripts"
+      />
     </div>
   );
 }

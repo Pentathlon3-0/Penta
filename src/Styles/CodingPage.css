@@ -1,0 +1,24 @@
+/* Custom scrollbar for code and output cards */
+.code-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #a3a3a3 #e5e7eb; /* thumb, track */
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.code-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+  background: #e5e7eb;
+  border-radius: 8px;
+}
+
+.code-scrollbar::-webkit-scrollbar-thumb {
+  background: #a3a3a3;
+  border-radius: 8px;
+  border: 2px solid #d1d5db;
+}
+
+.code-scrollbar::-webkit-scrollbar-corner {
+  background: #e5e7eb;
+}
