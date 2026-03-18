@@ -17,7 +17,7 @@ export default function Index() {
             <Link to="/password"><Lock className="mr-2 h-5 w-5" /> Clever Minds</Link>
           </Button>
           <Button size="lg" variant="secondary" asChild>
-            <Link to="/coding"><Code className="mr-2 h-5 w-5" /> Coding Challenge</Link>
+            <Link to="/coding"><Code className="mr-2 h-5 w-5" /> Code Wizard</Link>
           </Button>
           <Button size="lg" variant="secondary" asChild>
             <Link to="/dichotomous"><TreePine className="mr-2 h-5 w-5" /> Dichotomous Tree</Link>

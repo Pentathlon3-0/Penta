@@ -1,6 +1,7 @@
 
 
 import { supabase } from "../../integrations/supabase/client";
+import { getTop3TeamsFromLivescore } from "./utils/getTop3Teams";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../Styles/Round3Page.css";
@@ -12,6 +13,7 @@ type FinalRoundScore = {
   school_id: string;
   clever_mind_score: number;
   brain_maze_score: number;
+  buzar_score: number;
 };
 
 function FinalRoundScoresTable({ teams }: { teams: Team[] }) {
@@ -24,7 +26,7 @@ function FinalRoundScoresTable({ teams }: { teams: Team[] }) {
       const ids = teams.map(t => t.id);
       const { data } = await (supabase as any)
         .from("final_round")
-        .select("school_id, clever_mind_score, brain_maze_score")
+        .select("school_id, clever_mind_score, brain_maze_score, buzar_score")
         .in("school_id", ids);
       const map: Record<string, FinalRoundScore> = {};
       data?.forEach((row: any) => {
@@ -32,6 +34,7 @@ function FinalRoundScoresTable({ teams }: { teams: Team[] }) {
           school_id: row.school_id,
           clever_mind_score: row.clever_mind_score,
           brain_maze_score: row.brain_maze_score,
+          buzar_score: row.buzar_score ?? 0,
         };
       });
       setScores(map);
@@ -48,10 +51,14 @@ function FinalRoundScoresTable({ teams }: { teams: Team[] }) {
         [field]: value,
       },
     }));
+    // Always send numbers, never empty string
+    const clever = Number(field === "clever_mind_score" ? value : scores[school_id]?.clever_mind_score ?? 0) || 0;
+    const brain = Number(field === "brain_maze_score" ? value : scores[school_id]?.brain_maze_score ?? 0) || 0;
     await (supabase as any).from("final_round").upsert({
       school_id,
-      clever_mind_score: field === "clever_mind_score" ? value : scores[school_id]?.clever_mind_score || 0,
-      brain_maze_score: field === "brain_maze_score" ? value : scores[school_id]?.brain_maze_score || 0,
+      clever_mind_score: clever,
+      brain_maze_score: brain,
+      buzar_score: scores[school_id]?.buzar_score ?? 0,
     });
   };
 
@@ -124,100 +131,32 @@ const Round3Page = () => {
   /* ================= LOAD FINALISTS FROM DATABASE ================= */
 
   useEffect(() => {
+    const loadFinalists = async () => {
+      // Get top 3 teams from livescore
+      const top3 = await getTop3TeamsFromLivescore();
+      if (!top3 || top3.length < 3) return;
+
+      // Load members for each team
+      const loadTeam = async (team: any): Promise<Team> => {
+        const { data: members } = await supabase
+          .from("players")
+          .select("id, name")
+          .eq("team_id", team.id);
+        return {
+          id: team.id,
+          name: team.name,
+          members: members?.map(m => ({ id: m.id, name: m.name })) || []
+        };
+      };
+      const t1 = await loadTeam(top3[0]);
+      const t2 = await loadTeam(top3[1]);
+      const t3 = await loadTeam(top3[2]);
+      setTeam1(t1);
+      setTeam2(t2);
+      setTeam3(t3);
+    };
     loadFinalists();
   }, []);
-
-  const loadFinalists = async () => {
-    // 1️⃣ Get Qualifier round IDs
-    const { data: q1 } = await supabase
-      .from("rounds")
-      .select("id")
-      .eq("name", "Qualifier 1")
-      .single();
-
-    const { data: q2 } = await supabase
-      .from("rounds")
-      .select("id")
-      .eq("name", "Qualifier 2")
-      .single();
-
-    if (!q1 || !q2) {
-      alert("Qualifier rounds not found in database");
-      return;
-    }
-
-    // make sure round2 has been scored before showing final page
-    const { count: round2Count } = await supabase
-      .from("scores")
-      .select("id", { count: "exact", head: true })
-      .eq("round_id", q2.id as string);
-
-    if (!round2Count || round2Count === 0) {
-      setQualifier2Done(false);
-      return;
-    }
-    setQualifier2Done(true);
-
-    // 2️⃣ Get scores from Qualifier rounds
-    const { data: scores1 } = await supabase
-      .from("scores")
-      .select("team_id, points")
-      .eq("round_id", q1.id);
-
-    const { data: scores2 } = await supabase
-      .from("scores")
-      .select("team_id, points")
-      .eq("round_id", q2.id);
-
-    // 3️⃣ Get teams
-    const { data: teams } = await supabase
-      .from("teams")
-      .select("id, name");
-
-    if (!teams) return;
-
-    // 4️⃣ Sum scores per team from both qualifier rounds
-    const map = new Map<string, number>();
-
-    scores1?.forEach(s => {
-      map.set(s.team_id, (map.get(s.team_id) || 0) + s.points);
-    });
-
-    scores2?.forEach(s => {
-      map.set(s.team_id, (map.get(s.team_id) || 0) + s.points);
-    });
-
-    // 5️⃣ Sort teams by score and get top 3
-    const sorted = [...teams]
-      .map(t => ({
-        ...t,
-        total: map.get(t.id) || 0
-      }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 3);
-
-    // 6️⃣ Load members for each team
-    const loadTeam = async (team: any): Promise<Team> => {
-      const { data: members } = await supabase
-        .from("players")
-        .select("id, name")
-        .eq("team_id", team.id);
-
-      return {
-        id: team.id,
-        name: team.name,
-        members: members?.map(m => ({ id: m.id, name: m.name })) || []
-      };
-    };
-
-    const t1 = await loadTeam(sorted[0]);
-    const t2 = await loadTeam(sorted[1]);
-    const t3 = await loadTeam(sorted[2]);
-
-    setTeam1(t1);
-    setTeam2(t2);
-    setTeam3(t3);
-  };
 
   /* ================= ROUND SCORES ================= */
 
@@ -263,18 +202,20 @@ const Round3Page = () => {
 
   const [round1Finished, setRound1Finished] = useState(false);
   const [round2Finished, setRound2Finished] = useState(false);
+  const [buzzerFinished, setBuzzerFinished] = useState(false);
 
   // Load finished state from DB
   useEffect(() => {
     const fetchFinished = async () => {
       const { data } = await (supabase as any)
         .from("final_round_status")
-        .select("clever_mind_finished, brain_maze_finished")
+        .select("clever_mind_finished, brain_maze_finished, buzzer_finished")
         .limit(1)
         .single();
       if (data) {
         setRound1Finished(!!data.clever_mind_finished);
         setRound2Finished(!!data.brain_maze_finished);
+        setBuzzerFinished(!!data.buzzer_finished);
       }
     };
     fetchFinished();
@@ -365,7 +306,7 @@ const Round3Page = () => {
       correct += p.correct.length;
       wrong += p.wrong.length;
     });
-    return correct * 2 - wrong;
+    return correct * 20 - wrong * 10;
   }
 
   // Save buzar_performance and buzar_score to Supabase for a team
@@ -380,7 +321,7 @@ const Round3Page = () => {
   }
 
   const toggleCircle = (team: 1 | 2 | 3, r: number, c: number) => {
-    if (finalFinished) return;
+    if (finalFinished || buzzerFinished) return;
     const setter =
       team === 1 ? setTeam1Circles : team === 2 ? setTeam2Circles : setTeam3Circles;
     const data =
@@ -396,7 +337,7 @@ const Round3Page = () => {
   };
 
   const markWrong = (team: 1 | 2 | 3, r: number, c: number) => {
-    if (finalFinished) return;
+    if (finalFinished || buzzerFinished) return;
     const setter =
       team === 1 ? setTeam1Circles : team === 2 ? setTeam2Circles : setTeam3Circles;
     const data =
@@ -428,6 +369,13 @@ const Round3Page = () => {
     if (!team1 || !team2) return;
 
     setFinalFinished(true);
+    setBuzzerFinished(true);
+
+    // Set buzzer_finished in DB
+    await (supabase as any)
+      .from("final_round_status")
+      .update({ buzzer_finished: true })
+      .eq("id", 1);
 
     const t1Buzzer = buzzerScore(team1Circles);
     const t2Buzzer = buzzerScore(team2Circles);
@@ -521,7 +469,7 @@ const Round3Page = () => {
                   setRound1(prev => ({ ...prev, [`t${idx + 1}`]: val }));
                   if (val !== "") saveFinalRoundScore(team.id, "clever_mind_score", Number(val));
                 }}
-                disabled={round1Finished}
+                disabled={round1Finished || buzzerFinished}
                 placeholder="Score"
               />
             </div>
@@ -557,7 +505,7 @@ const Round3Page = () => {
                     setRound2(prev => ({ ...prev, [`t${idx + 1}`]: val }));
                     if (val !== "") saveFinalRoundScore(team.id, "brain_maze_score", Number(val));
                   }}
-                  disabled={round2Finished}
+                  disabled={round2Finished || buzzerFinished}
                   placeholder="Score"
                 />
               </div>
@@ -608,6 +556,7 @@ const Round3Page = () => {
                     copy[r] = e.target.value;
                     setSelected(copy);
                   }}
+                  disabled={buzzerFinished}
                 >
                   <option value="" disabled hidden style={{ color: "#0f172a", backgroundColor: "#f8fafc" }}>
                     Select member
@@ -618,7 +567,7 @@ const Round3Page = () => {
                       <option
                         key={m.id}
                         value={m.id}
-                        style={{ color: "#0f172a", backgroundColor: "#f8fafc" }}
+                        style={{ color: "#0f172a", backgroundColor: "#0284c7" }}
                       >
                         {m.name}
                       </option>
@@ -630,8 +579,9 @@ const Round3Page = () => {
                     <div
                       key={i}
                       className={`buzzer-circle ${c}`}
-                      onClick={() => toggleCircle(teamNo, r, i)}
-                      onDoubleClick={() => markWrong(teamNo, r, i)}
+                      onClick={() => !buzzerFinished && toggleCircle(teamNo, r, i)}
+                      onDoubleClick={() => !buzzerFinished && markWrong(teamNo, r, i)}
+                      style={buzzerFinished ? { cursor: "not-allowed", opacity: 0.5 } : {}}
                     />
                   ))}
                 </div>
@@ -646,8 +596,8 @@ const Round3Page = () => {
 </div>
 
 
-        <button className="finish-btn" onClick={finishFinal}>
-          Finish Final
+        <button className="finish-btn" onClick={finishFinal} disabled={buzzerFinished}>
+          {buzzerFinished ? "Final Finished" : "Finish Final"}
         </button>
       </div>
     </div>

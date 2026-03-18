@@ -19,6 +19,7 @@ import DashboardHome from "@/pages/dashboard/DashboardHome";
 import DashboardCoding from "@/pages/dashboard/DashboardCoding";
 import TeamSetupPage from "@/pages/dashboard/TeamSetupPage";
 import ScoreboardPage from "@/pages/dashboard/ScoreboardPage";
+import FinalScoreboardPage from "@/pages/dashboard/FinalScoreboardPage";
 import Round1Page from "@/pages/dashboard/Round1Page";
 import Round2Page from "@/pages/dashboard/Round2Page";
 import Round3Page from "@/pages/dashboard/Round3Page";
@@ -80,6 +81,7 @@ const App = () => (
               {/* <Route path="bazar" element={<DashboardBazar />} /> DashboardBazar removed */}
               <Route path="coding" element={<DashboardCoding />} />
               <Route path="scoreboard" element={<ScoreboardPage />} />
+              <Route path="final-scoreboard" element={<FinalScoreboardPage />} />
               <Route path="livescore" element={<LivescorePage />} />
               <Route path="player-performance" element={<PlayerPerformancePage />} />
               <Route path="school-quiz-progress" element={<SchoolQuizProgressPage />} />

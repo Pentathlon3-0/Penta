@@ -1,0 +1,92 @@
+
+
+.final-score-bg {
+  background: linear-gradient(135deg, #001021 0%, #002848 50%, #004080 100%);
+  min-height: 100vh;
+  color: #e0f7ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 32px;
+}
+
+.final-score-main {
+  background: rgba(15, 23, 42, 0.92);
+  border-radius: 16px;
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.10), 0 10px 30px rgba(0, 0, 0, 0.25);
+  padding: 1.5rem 1.5rem 1.5rem 1.5rem;
+  max-width: 650px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.final-score-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+
+.final-score-title {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: #a0e7ff;
+  text-shadow: 0 0 10px #3ba9ff, 0 0 20px #3ba9ff;
+}
+
+.final-score-loading {
+  text-align: center;
+}
+
+.final-scoreboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  background: rgba(0, 16, 40, 0.7);
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #e0f7ff;
+  font-size: 1rem;
+  max-height: 70vh;
+  box-sizing: border-box;
+}
+.final-scoreboard-table th, .final-scoreboard-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+  line-height: 1.2;
+}
+.final-scoreboard-table th {
+  background: rgba(0, 32, 64, 0.7);
+  color: #3ba9ff;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-bottom: 2px solid #3ba9ff;
+  font-size: 0.98rem;
+}
+.final-scoreboard-table td {
+  border-bottom: 1px solid rgba(59,130,246,0.18);
+  font-weight: 500;
+  font-size: 0.97rem;
+}
+.final-scoreboard-table tr:last-child td {
+  border-bottom: none;
+}
+.final-scoreboard-table tr:nth-child(odd) td {
+  background: rgba(0, 32, 64, 0.13);
+}
+.final-scoreboard-table tr:nth-child(even) td {
+  background: rgba(0, 32, 64, 0.22);
+}
+.final-scoreboard-table td:first-child {
+  color: #a0e7ff;
+  font-weight: bold;
+}
+.final-scoreboard-table td:last-child {
+  color: #3ba9ff;
+  font-weight: bold;
+}

@@ -100,6 +100,18 @@ function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                   <SidebarMenuItem>
+                     <SidebarMenuButton asChild>
+                       <NavLink
+                         to="/dashboard/final-scoreboard"
+                         className="hover:bg-sidebar-accent/50 pl-6"
+                         activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                       >
+                         <Trophy className="mr-2 h-4 w-4" />
+                         <span>Final Round Scoreboard</span>
+                       </NavLink>
+                     </SidebarMenuButton>
+                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink

@@ -529,7 +529,7 @@ const Round2Page = () => {
     <div className="round2-bg">
       <div className="round2-card">
         <h1 className="qualifier-title">Qualifier</h1>
-        <h2>Qualifier Round 1</h2>
+        <h2>Think & Stack</h2>
 
         {(!allSubjectsDone || showRound1) && SUBJECTS.map((s, si) => {
                   {/* Knockout Round 1 Finished button always visible at bottom, enabled only when all subjects are finished */}
@@ -562,7 +562,7 @@ const Round2Page = () => {
                       }}
                       style={{ marginTop: 24 }}
                     >
-                      KNOCKOUT ROUND 1 FINISHED
+                      Think & Stack Round FINISHED
                     </button>
                   )}
           const isExpanded = expandedSubject === si;
@@ -743,14 +743,14 @@ const Round2Page = () => {
           className="finish-btn left"
           onClick={() => setShowRound1(true)}
         >
-          SHOW QUALIFIER ROUND 1
+          SHOW THINK & STACK ROUND 1
         </button>
       )}
 
         {allSubjectsDone && (
           <>
             <h2 style={{ textAlign: "left", marginTop: "60px" }}>
-              Qualifier Round 2
+              Code Wizard
             </h2>
 
             <div className="round2-table">
@@ -797,7 +797,7 @@ const Round2Page = () => {
                 className="glass-btn"
                 onClick={() => setShowCodingModal(true)}
               >
-                HTML SCORES
+                Code Wizard SCORES
               </button>
             </div>
           </>

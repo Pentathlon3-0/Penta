@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getTop3TeamsFromLivescore } from "../dashboard/utils/getTop3Teams";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import "../../Styles/PasswordPage.css";
@@ -239,54 +240,18 @@ export default function PasswordPage() {
         setActiveSchoolId(activeSchoolId);
       }
 
-      // fetch top 3 schools by total score (sum of three columns)
-      // FIX: Use correct column names from your actual final_round schema
-      // Try to fetch all columns, fallback if some are missing
-      let finalsRaw = null;
-      let finalsError = null;
-      let finals = [];
+      // fetch top 3 schools using livescore logic
+
       try {
-        const { data, error } = await (supabase as any)
-          .from("final_round")
-          .select("school_id, clever_mind_score, brain_maze_score, buzar_score");
-        finalsRaw = data;
-        finalsError = error;
-        if (finalsError) {
-          throw finalsError;
+        let top3 = await getTop3TeamsFromLivescore();
+        // Shuffle the array
+        for (let i = top3.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [top3[i], top3[j]] = [top3[j], top3[i]];
         }
-        if (finalsRaw && finalsRaw.length > 0) {
-          finals = finalsRaw
-            .filter((row: any) => row.school_id)
-            .map((row: any) => ({
-              school_id: row.school_id,
-              total:
-                (row.clever_mind_score || 0) +
-                (row.brain_maze_score || 0) +
-                (row.buzar_score || 0),
-            }));
-          finals = finals.sort((a: any, b: any) => b.total - a.total).slice(0, 3);
-        }
+        setFinalistSchools(top3);
       } catch (err) {
-        console.error("Error fetching final_round (check column names):", err);
-        // Optionally show a user-facing error message here
-      }
-      console.log("finalsRaw:", finalsRaw);
-      console.log("finals (top 3):", finals);
-      if (finals.length > 0) {
-        const ids = finals.map((f: any) => f.school_id);
-        const { data: schools, error: schoolsError } = await (supabase as any)
-          .from("teams")
-          .select("id, name")
-          .in("id", ids);
-        if (schoolsError) {
-          console.error("Error fetching teams:", schoolsError);
-        }
-        const orderedSchools = ids
-          .map((id: string) => (schools || []).find((s: any) => s.id === id))
-          .filter(Boolean);
-        setFinalistSchools(orderedSchools);
-        console.log("orderedSchools (dropdown):", orderedSchools);
-      } else {
+        console.error("Error fetching top 3 teams from livescore:", err);
         setFinalistSchools([]);
       }
 

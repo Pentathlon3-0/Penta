@@ -428,7 +428,7 @@ export default function CodingPage() {
       {step === "enter" && (
         <Card className="max-w-md mx-auto animate-scale-in glass-card">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-display">💻 Coding Challenge</CardTitle>
+            <CardTitle className="text-2xl font-display">💻 Code Wizard</CardTitle>
             <p className="text-muted-foreground text-sm mt-1">Select your school to begin the centered paragraph task</p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -463,7 +463,7 @@ export default function CodingPage() {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex-1" />
                 <h2 className="font-display text-2xl font-semibold text-center">
-                  {schoolName} — Coding Challenge
+                  {schoolName} — Code Wizard
                 </h2>
                 <div className="flex-1 flex justify-end gap-2">
                   <span
