@@ -1,4 +1,164 @@
 import React, { useEffect, useState } from "react";
+// --- Qualifier Round 2 Edit Component ---
+function QualifierRound2Edit({ onClose }: { onClose: () => void }) {
+  const [teams, setTeams] = useState<any[]>([]);
+  const [scores, setScores] = useState<(number | "")[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState(false); // false = editing, true = finished
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        // Fetch status
+        const { data: statusRow } = await (supabase.from("qualifier_round2_status" as any) as any)
+          .select("id, qualifier_round2_status")
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setStatus(statusRow?.qualifier_round2_status ?? false);
+
+        // Fetch both Knockout 1 and Knockout 2 round IDs
+        const { data: rounds } = await supabase
+          .from("rounds")
+          .select("id,name")
+          .in("name", ["Knockout 1", "Knockout 2"]);
+        if (!rounds || rounds.length < 2) throw new Error("Round 1 or 2 data missing");
+        const r1 = rounds.find((r: any) => r.name === "Knockout 1");
+        const r2 = rounds.find((r: any) => r.name === "Knockout 2");
+        if (!r1 || !r2) throw new Error("Knockout rounds not found");
+
+        // Fetch all scores for both rounds
+        const { data: allScores } = await supabase
+          .from("scores")
+          .select("team_id, points, round_id")
+          .in("round_id", [r1.id, r2.id]);
+        if (!allScores) throw new Error("No scores data");
+
+        // Sum points for each team across both rounds
+        const totals: Record<string, number> = {};
+        allScores.forEach((s: any) => {
+          totals[s.team_id] = (totals[s.team_id] || 0) + s.points;
+        });
+
+        // Sort teams by total points descending and take top 5
+        const sortedTeamIds = Object.entries(totals)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(x => x[0]);
+
+        // Fetch team info for these school_ids
+        const { data: teamRows } = await supabase.from("teams").select("id, name").in("id", sortedTeamIds);
+        setTeams(teamRows || []);
+
+        // Load existing round2 scores for these teams from livescore
+        const { data: liveRows } = await (supabase as any)
+          .from("livescore")
+          .select("school_id, qualifier_round2_final");
+        const filteredLiveRows = (liveRows || []).filter((row: any) => sortedTeamIds.includes(row.school_id));
+        const r2scores = sortedTeamIds.map((id: string) => {
+          const row: any = filteredLiveRows.find((r: any) => r.school_id === id);
+          return row ? row.qualifier_round2_final ?? "" : "";
+        });
+        setScores(r2scores.map((v: any) => v === undefined ? "" : v));
+      } catch (e: any) {
+        setError(e.message);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const saveEdit = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // Save scores to livescore and scores table
+      // Get round2 id
+      const { data: round2 } = await supabase.from("rounds").select("id").eq("name", "Qualifier 2").single();
+      if (!round2) throw new Error("Round 2 not found");
+      await supabase.from("scores").delete().eq("round_id", round2.id);
+      const inserts = teams.map((t, i) => ({
+        round_id: round2.id,
+        team_id: t.id,
+        points: Math.round(Number(scores[i] || 0))
+      }));
+      await supabase.from("scores").insert(inserts);
+      // Update livescore
+      for (let i = 0; i < teams.length; i++) {
+        const pts = Math.round(Number(scores[i] || 0));
+        await (supabase as any).from("livescore").upsert({ school_id: teams[i].id, qualifier_round2_final: pts }, { onConflict: "school_id" });
+      }
+      // Set status to true
+      const { data: statusRow } = await (supabase.from("qualifier_round2_status" as any) as any)
+        .select("id")
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (statusRow && statusRow.id) {
+        await (supabase.from("qualifier_round2_status" as any) as any)
+          .update({ qualifier_round2_status: true })
+          .eq("id", statusRow.id);
+        setStatus(true);
+      }
+      alert("Qualifier Round 2 edits saved!");
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  if (loading) return <div style={{ color: "#fff", textAlign: "center" }}>Loading Qualifier Round 2 Edit...</div>;
+  if (error) return <div style={{ color: "#fff", textAlign: "center" }}>{error}</div>;
+  if (!teams.length) return <div style={{ color: "#fff", textAlign: "center" }}>No teams found</div>;
+
+  return (
+    <div className="round2-bg">
+      <div className="round2-card">
+        <h2 className="final-round-title">Edit Qualifier Round 2</h2>
+        <div className="round2-table">
+          <div className="round-header">
+            <span style={{ textAlign: "left" }}>Team</span>
+            <span>Score</span>
+          </div>
+          {teams.map((team, i) => (
+            <div key={i} className="round2-row">
+              <span style={{ textAlign: "left" }}>{team.name}</span>
+              <input
+                type="number"
+                className="qr2-score-input oval"
+                value={typeof scores[i] === "undefined" ? "" : scores[i]}
+                onChange={e => {
+                  if (status) return;
+                  const copy = [...scores];
+                  copy[i] = e.target.value === "" ? "" : Number(e.target.value);
+                  setScores(copy);
+                }}
+                disabled={status}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="button-group">
+          <button
+            className="finish-btn"
+            onClick={saveEdit}
+            disabled={status}
+          >
+            {status ? "ROUND 2 FINISHED" : "SAVE EDIT"}
+          </button>
+          <button
+            className="glass-btn"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 import { getTop3TeamsFromLivescore } from "./utils/getTop3Teams";
 import "../../Styles/Round3Page.css";
 // --- Final Round Edit Component ---
@@ -307,7 +467,7 @@ const EditKnockoutScores: React.FC = () => {
   const [round2Details, setRound2Details] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editType, setEditType] = useState<"round1" | "round2" | "final">("round1");
+  const [editType, setEditType] = useState<"round1" | "round2" | "final" | "editQualifier2">("round1");
 
   useEffect(() => {
     if (authenticated) {
@@ -506,6 +666,39 @@ const EditKnockoutScores: React.FC = () => {
           Edit Knockout Round 2
         </button>
         <button
+          onClick={async () => {
+            // Set status to false in qualifier_round2_status
+            const { data: statusRow } = await (supabase.from("qualifier_round2_status" as any) as any)
+              .select("id")
+              .order("id", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (statusRow && statusRow.id) {
+              await (supabase.from("qualifier_round2_status" as any) as any)
+                .update({ qualifier_round2_status: false })
+                .eq("id", statusRow.id);
+            } else {
+              await (supabase.from("qualifier_round2_status" as any) as any)
+                .insert({ qualifier_round2_status: false });
+            }
+            setEditType("editQualifier2");
+          }}
+          style={{
+            padding: '0.5rem 1.5rem',
+            borderRadius: '1.5rem',
+            border: editType === 'editQualifier2' ? '2px solid #3b82f6' : '2px solid #334155',
+            background: editType === 'editQualifier2' ? 'rgba(59,130,246,0.15)' : 'rgba(30,41,59,0.5)',
+            color: editType === 'editQualifier2' ? '#fff' : '#cbd5e1',
+            fontWeight: 600,
+            fontSize: '1rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          disabled={editType === 'editQualifier2'}
+        >
+          Edit Qualifier Round 2
+        </button>
+        <button
           onClick={() => setEditType("final")}
           style={{
             padding: '0.5rem 1.5rem',
@@ -522,7 +715,9 @@ const EditKnockoutScores: React.FC = () => {
           Edit Final Round
         </button>
       </div>
-      {editType === "final" ? (
+      {editType === "editQualifier2" ? (
+        <QualifierRound2Edit onClose={() => setEditType("round1")} />
+      ) : editType === "final" ? (
         <FinalRoundEdit onClose={() => setEditType("round1")} />
       ) : loading ? (
         <div>Loading...</div>
