@@ -1,3 +1,277 @@
+// --- Qualifier Round 1 Edit Component ---
+function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
+  const SUBJECTS = [
+    { key: "maths", label: "Maths", credit: 3 },
+    { key: "science", label: "Science", credit: 3 },
+    { key: "it", label: "IT", credit: 2 },
+    { key: "gk", label: "GK", credit: 1 },
+    { key: "sports", label: "Sports", credit: 1 }
+  ];
+  const [teams, setTeams] = useState<any[]>([]);
+  const [players, setPlayers] = useState<Record<string, string>>({}); // playerId -> playerName
+  const [scores, setScores] = useState<any[][]>([]); // [team][subject]
+  const [finishedSubjects, setFinishedSubjects] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        // Set all subject statuses to false (unlocked for editing)
+        for (const subj of SUBJECTS) {
+          await (supabase.from("qualifier1_details" as any) as any)
+            .update({ status: false })
+            .eq("subject", subj.key);
+        }
+        // Fetch both Knockout 1 and Knockout 2 round IDs
+        const { data: rounds } = await supabase
+          .from("rounds")
+          .select("id,name")
+          .in("name", ["Knockout 1", "Knockout 2"]);
+        if (!rounds || rounds.length < 2) throw new Error("Round 1 or 2 data missing");
+        const r1 = rounds.find((r: any) => r.name === "Knockout 1");
+        const r2 = rounds.find((r: any) => r.name === "Knockout 2");
+        if (!r1 || !r2) throw new Error("Knockout rounds not found");
+        // Fetch all scores for both rounds
+        const { data: allScores } = await supabase
+          .from("scores")
+          .select("team_id, points, round_id")
+          .in("round_id", [r1.id, r2.id]);
+        if (!allScores) throw new Error("No scores data");
+        // Sum points for each team across both rounds
+        const totals: Record<string, number> = {};
+        allScores.forEach((s: any) => {
+          totals[s.team_id] = (totals[s.team_id] || 0) + s.points;
+        });
+        // Sort teams by total points descending and take top 5
+        const sortedTeamIds = Object.entries(totals)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(x => x[0]);
+        // Fetch team info for these school_ids
+        const { data: teamRows } = await supabase.from("teams").select("id, name").in("id", sortedTeamIds);
+        setTeams(teamRows || []);
+        // Fetch all players for these teams
+        const teamIds = (teamRows || []).map(t => t.id);
+        const { data: playerRows } = await supabase.from("players").select("id, name, team_id").in("team_id", teamIds);
+        const playerMap: Record<string, string> = {};
+        (playerRows || []).forEach((p: any) => { playerMap[p.id] = p.name; });
+        setPlayers(playerMap);
+        // Fetch details for all subjects
+        const { data: details } = await (supabase.from("qualifier1_details" as any) as any).select("subject, performance, extras, players, status");
+        // Build scores matrix for only top 5 teams
+        const blankScores: any[][] = (teamRows || []).map(team =>
+          SUBJECTS.map(() => ({ playerId: "", circles: [], extra: "" }))
+        );
+        const finished: Record<string, boolean> = {};
+        if (details) {
+          details.forEach((d: any) => {
+            if (d.status === true) finished[d.subject] = true;
+            const si = SUBJECTS.findIndex(s => s.key === d.subject);
+            if (si >= 0) {
+              (teamRows || []).forEach((team, t) => {
+                blankScores[t][si].circles = d.performance?.[team.id] || [];
+                blankScores[t][si].extra = d.extras?.[team.id] ?? "";
+                blankScores[t][si].playerId = d.players?.[team.id] || "";
+              });
+            }
+          });
+        }
+        setScores(blankScores);
+        setFinishedSubjects(finished);
+      } catch (e: any) {
+        setError(e.message);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const subjectTotal = (m: any) => {
+    const extra = m.extra === "" ? 0 : m.extra;
+    return m.circles.length * 2 + extra * m.circles.length;
+  };
+
+  const teamTotal = (t: number, arr?: any[][]) => {
+    const src = arr || scores;
+    let sum = 0;
+    src[t].forEach((m, si) => {
+      const credit = SUBJECTS[si].credit;
+      sum += subjectTotal(m) * credit;
+    });
+    return Number((sum).toFixed(2));
+  };
+
+  // Save edits for a subject
+  const saveSubjectEdits = async (si: number) => {
+    setLoading(true);
+    setError("");
+    try {
+      // Ensure every team has chosen a player for this subject
+      for (let t = 0; t < teams.length; t++) {
+        const m = scores[t][si];
+        if (!m.playerId) {
+          alert(`Choose a player for team ${teams[t].name}`);
+          setLoading(false);
+          return;
+        }
+      }
+      // Build data for upsert
+      const key = SUBJECTS[si].key;
+      const performance: Record<string, number[]> = {};
+      const extras: Record<string, number> = {};
+      const players: Record<string, string> = {};
+      teams.forEach((team, t) => {
+        performance[team.id] = scores[t][si].circles;
+        extras[team.id] = scores[t][si].extra === "" ? 0 : (scores[t][si].extra as number);
+        players[team.id] = scores[t][si].playerId;
+      });
+      await (supabase.from("qualifier1_details" as any) as any).upsert({
+        subject: key,
+        performance,
+        extras,
+        players,
+        status: true
+      }, { onConflict: "subject" });
+      // Update livescore and scores tables
+      // Get round id for Qualifier 1
+      let { data: roundData } = await supabase.from("rounds").select("id").eq("name", "Qualifier 1").single();
+      let roundId = roundData?.id;
+      if (!roundId) {
+        const { data: newRound } = await supabase.from("rounds").insert({ name: "Qualifier 1", score_type: "team" }).select().single();
+        roundId = newRound.id;
+      }
+      // Remove any existing scores for this round/team/subject
+      await supabase.from("scores").delete().match({ round_id: roundId, subject: SUBJECTS[si].key });
+      // Insert new scores for this subject
+      const inserts = teams.map((team, t) => {
+        const m = scores[t][si];
+        const credit = SUBJECTS[si].credit;
+        const extra = m.extra === "" ? 0 : m.extra;
+        const total = (m.circles.length * 2 + extra * m.circles.length) * credit;
+        return {
+          round_id: roundId,
+          team_id: team.id,
+          subject: SUBJECTS[si].key,
+          points: Math.round(total),
+        };
+      });
+      await supabase.from("scores").insert(inserts);
+      // Update livescore for each team
+      for (let t = 0; t < teams.length; t++) {
+        const m = scores[t][si];
+        const pts = Math.round(subjectTotal(m) * SUBJECTS[si].credit);
+        await (supabase as any).from("livescore").upsert({ school_id: teams[t].id, [`${SUBJECTS[si].key}_qual1`]: pts }, { onConflict: "school_id" });
+      }
+      setFinishedSubjects(prev => ({ ...prev, [SUBJECTS[si].key]: true }));
+      alert(`Edits for ${SUBJECTS[si].label} saved!`);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  if (loading) return <div style={{ color: "#fff", textAlign: "center" }}>Loading Qualifier Round 1 Edit...</div>;
+  if (error) return <div style={{ color: "#fff", textAlign: "center" }}>{error}</div>;
+  if (!teams.length) return <div style={{ color: "#fff", textAlign: "center" }}>No teams found</div>;
+
+  return (
+    <div className="round2-bg">
+      <div className="round2-card">
+        <h2 className="final-round-title">Edit Qualifier Round 1</h2>
+        {SUBJECTS.map((s, si) => (
+          <div key={si} className="team-section">
+            <h3 style={{ textAlign: "left" }}>{s.label}</h3>
+            <table className="qualifier-table">
+              <thead>
+                <tr>
+                  <th>School</th>
+                  <th>Player</th>
+                  <th>Score</th>
+                  <th>Extra</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.map((team, t) => (
+                  <tr key={t} className={finishedSubjects[s.key] ? "row-disabled" : ""}>
+                    <td>{team.name}</td>
+                    <td>
+                      <span>
+                        {players[scores[t][si].playerId] || (scores[t][si].playerId ? scores[t][si].playerId : "")}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="circle-group">
+                        {[0, 1, 2, 3, 4].map(c => (
+                          <div
+                            key={c}
+                            className={`circle ${scores[t][si].circles.includes(c) ? "active" : ""}`}
+                            onClick={() => {
+                              if (finishedSubjects[s.key]) return;
+                              const updated = scores.map((teamArr, ti) =>
+                                ti !== t
+                                  ? teamArr
+                                  : teamArr.map((mem, mi) =>
+                                      mi !== si
+                                        ? mem
+                                        : ({
+                                            ...mem,
+                                            circles: mem.circles.includes(c)
+                                              ? mem.circles.filter((x: number) => x !== c)
+                                              : [...mem.circles, c]
+                                          })
+                                    )
+                              );
+                              setScores(updated);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="extra-input"
+                        disabled={finishedSubjects[s.key]}
+                        value={typeof scores[t][si].extra === "undefined" ? "" : scores[t][si].extra}
+                        onChange={e => {
+                          if (finishedSubjects[s.key]) return;
+                          const newVal = e.target.value === "" ? "" : Number(e.target.value);
+                          const updated = scores.map((teamArr, ti) =>
+                            ti !== t
+                              ? teamArr
+                              : teamArr.map((mem, mi) =>
+                                  mi !== si
+                                    ? mem
+                                    : ({ ...mem, extra: newVal })
+                                )
+                          );
+                          setScores(updated);
+                        }}
+                      />
+                    </td>
+                    <td>{subjectTotal(scores[t][si])}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button
+              className="finish-btn left"
+              onClick={() => saveSubjectEdits(si)}
+              disabled={finishedSubjects[s.key]}
+            >
+              {finishedSubjects[s.key] ? "SAVED" : "SAVE EDITS"}
+            </button>
+          </div>
+        ))}
+        <div className="button-group">
+          <button className="glass-btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 import React, { useEffect, useState } from "react";
 // --- Qualifier Round 2 Edit Component ---
 function QualifierRound2Edit({ onClose }: { onClose: () => void }) {
@@ -467,7 +741,7 @@ const EditKnockoutScores: React.FC = () => {
   const [round2Details, setRound2Details] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editType, setEditType] = useState<"round1" | "round2" | "final" | "editQualifier2">("round1");
+  const [editType, setEditType] = useState<"round1" | "round2" | "final" | "editQualifier2" | "editQualifier1">("round1");
 
   useEffect(() => {
     if (authenticated) {
@@ -698,6 +972,32 @@ const EditKnockoutScores: React.FC = () => {
         >
           Edit Qualifier Round 2
         </button>
+
+        <button
+          onClick={async () => {
+            // Set all subject statuses to false in qualifier1_details
+            for (const subj of ["maths", "science", "it", "gk", "sports"]) {
+              await (supabase.from("qualifier1_details" as any) as any)
+                .update({ status: false })
+                .eq("subject", subj);
+            }
+            setEditType("editQualifier1");
+          }}
+          style={{
+            padding: '0.5rem 1.5rem',
+            borderRadius: '1.5rem',
+            border: editType === 'editQualifier1' ? '2px solid #3b82f6' : '2px solid #334155',
+            background: editType === 'editQualifier1' ? 'rgba(59,130,246,0.15)' : 'rgba(30,41,59,0.5)',
+            color: editType === 'editQualifier1' ? '#fff' : '#cbd5e1',
+            fontWeight: 600,
+            fontSize: '1rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          disabled={editType === 'editQualifier1'}
+        >
+          Edit Qualifier Round 1
+        </button>
         <button
           onClick={() => setEditType("final")}
           style={{
@@ -717,6 +1017,8 @@ const EditKnockoutScores: React.FC = () => {
       </div>
       {editType === "editQualifier2" ? (
         <QualifierRound2Edit onClose={() => setEditType("round1")} />
+      ) : editType === "editQualifier1" ? (
+        <QualifierRound1Edit onClose={() => setEditType("round1")} />
       ) : editType === "final" ? (
         <FinalRoundEdit onClose={() => setEditType("round1")} />
       ) : loading ? (
@@ -739,7 +1041,7 @@ const EditKnockoutScores: React.FC = () => {
                 </thead>
                 <tbody>
                   {teams.map((team, tIndex) => {
-                    // Ensure team order and marks are correct
+                    // ...existing code...
                     const detail = round1Details.find(row => row.team_id === team.id) || { team_id: team.id, choices: {} };
                     const choices = countsToChoices(detail.choices || {});
                     let sum = 0;
@@ -786,6 +1088,7 @@ const EditKnockoutScores: React.FC = () => {
                 </thead>
                 <tbody>
                   {teams.map((team, i) => {
+                    // ...existing code...
                     const detail = round2Details[i] || {};
                     return (
                       <tr key={team.id}>
