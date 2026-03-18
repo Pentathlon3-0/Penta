@@ -10,7 +10,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "@/pages/Index";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
-import BazarPage from "@/pages/public/BazarPage";
+
 import CodingPage from "@/pages/public/CodingPage";
 import DichotomousTreePage from "@/pages/public/DichotomousTreePage";
 import PasswordPage from "@/pages/public/PasswordPage";
