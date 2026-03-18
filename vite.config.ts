@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: '/pentathlon3-0.github.io/', // Set base path for GitHub Pages
+  base: '/Pentathlon3-0/', // Set base path for GitHub Pages
   server: {
     host: "::",
     port: 8080,
