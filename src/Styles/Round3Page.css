@@ -155,7 +155,7 @@
 }
 .glass-select option {
   color: #0f172a;
-  background: #f8fafc;
+  background: #235e99;
 }
 .glass-select option[value=""] {
   display: none;
