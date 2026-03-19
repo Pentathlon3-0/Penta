@@ -9,7 +9,7 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
   ];
   const [teams, setTeams] = useState<any[]>([]);
   const [players, setPlayers] = useState<Record<string, string>>({}); // playerId -> playerName
-  const [scores, setScores] = useState<any[][]>([]); // [team][subject]
+  const [scores, setScores] = useState<any[][]>([]); // [team][subject], now with _circleColors
   const [finishedSubjects, setFinishedSubjects] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,7 +62,7 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
         const { data: details } = await (supabase.from("qualifier1_details" as any) as any).select("subject, performance, extras, players, status");
         // Build scores matrix for only top 5 teams
         const blankScores: any[][] = (teamRows || []).map(team =>
-          SUBJECTS.map(() => ({ playerId: "", circles: [], extra: "" }))
+          SUBJECTS.map(() => ({ playerId: "", circles: [], extra: "", _circleColors: {} }))
         );
         const finished: Record<string, boolean> = {};
         if (details) {
@@ -71,7 +71,27 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
             const si = SUBJECTS.findIndex(s => s.key === d.subject);
             if (si >= 0) {
               (teamRows || []).forEach((team, t) => {
-                blankScores[t][si].circles = d.performance?.[team.id] || [];
+                // New format: d.performance?.[team.id] is {green:[],red:[],yellow:[]}
+                const perf = d.performance?.[team.id];
+                if (perf && typeof perf === 'object' && ('green' in perf || 'red' in perf || 'yellow' in perf)) {
+                  const colorMap: { [circleIndex: number]: 'green' | 'red' | 'yellow' } = {};
+                  let circles: number[] = [];
+                  ['green','red','yellow'].forEach(color => {
+                    (perf[color] || []).forEach((idx: number) => {
+                      colorMap[idx] = color as 'green' | 'red' | 'yellow';
+                      if (color === 'green') circles.push(idx);
+                    });
+                  });
+                  blankScores[t][si]._circleColors = colorMap;
+                  blankScores[t][si].circles = circles;
+                } else {
+                  // fallback: old format (array of green indices)
+                  blankScores[t][si].circles = Array.isArray(perf) ? perf : [];
+                  blankScores[t][si]._circleColors = {};
+                  (Array.isArray(perf) ? perf : []).forEach((idx: number) => {
+                    blankScores[t][si]._circleColors[idx] = 'green';
+                  });
+                }
                 blankScores[t][si].extra = d.extras?.[team.id] ?? "";
                 blankScores[t][si].playerId = d.players?.[team.id] || "";
               });
@@ -89,7 +109,20 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
 
   const subjectTotal = (m: any) => {
     const extra = m.extra === "" ? 0 : m.extra;
-    return m.circles.length * 2 + extra * m.circles.length;
+    // Count circles by color
+    let green = 0, yellow = 0, red = 0;
+    if (m._circleColors) {
+      Object.values(m._circleColors).forEach((color: string) => {
+        if (color === 'green') green++;
+        else if (color === 'yellow') yellow++;
+        else if (color === 'red') red++;
+      });
+    } else {
+      green = m.circles.length;
+    }
+    // Calculation: (green*2 + extra*green) + (yellow*1 + extra*yellow) + (red*-1 + extra*red)
+    const total = (green * 2 + yellow * 1 + red * -1) + extra * (green + yellow -red);
+    return total;
   };
 
   const teamTotal = (t: number, arr?: any[][]) => {
@@ -118,11 +151,20 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
       }
       // Build data for upsert
       const key = SUBJECTS[si].key;
-      const performance: Record<string, number[]> = {};
+      const performance: Record<string, { green: number[]; red: number[]; yellow: number[] }> = {};
       const extras: Record<string, number> = {};
       const players: Record<string, string> = {};
       teams.forEach((team, t) => {
-        performance[team.id] = scores[t][si].circles;
+        const colorMap = scores[t][si]._circleColors || {};
+        const green: number[] = [];
+        const red: number[] = [];
+        const yellow: number[] = [];
+        Object.entries(colorMap).forEach(([idx, color]) => {
+          if (color === 'green') green.push(Number(idx));
+          else if (color === 'red') red.push(Number(idx));
+          else if (color === 'yellow') yellow.push(Number(idx));
+        });
+        performance[team.id] = { green, red, yellow };
         extras[team.id] = scores[t][si].extra === "" ? 0 : (scores[t][si].extra as number);
         players[team.id] = scores[t][si].playerId;
       });
@@ -147,8 +189,7 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
       const inserts = teams.map((team, t) => {
         const m = scores[t][si];
         const credit = SUBJECTS[si].credit;
-        const extra = m.extra === "" ? 0 : m.extra;
-        const total = (m.circles.length * 2 + extra * m.circles.length) * credit;
+        const total = subjectTotal(m) * credit;
         return {
           round_id: roundId,
           team_id: team.id,
@@ -203,30 +244,45 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
                     </td>
                     <td>
                       <div className="circle-group">
-                        {[0, 1, 2, 3, 4].map(c => (
-                          <div
-                            key={c}
-                            className={`circle ${scores[t][si].circles.includes(c) ? "active" : ""}`}
-                            onClick={() => {
-                              if (finishedSubjects[s.key]) return;
-                              const updated = scores.map((teamArr, ti) =>
-                                ti !== t
-                                  ? teamArr
-                                  : teamArr.map((mem, mi) =>
-                                      mi !== si
-                                        ? mem
-                                        : ({
-                                            ...mem,
-                                            circles: mem.circles.includes(c)
-                                              ? mem.circles.filter((x: number) => x !== c)
-                                              : [...mem.circles, c]
-                                          })
-                                    )
-                              );
-                              setScores(updated);
-                            }}
-                          />
-                        ))}
+                        {[0, 1, 2, 3, 4].map(c => {
+                          const color = scores[t][si]._circleColors ? scores[t][si]._circleColors[c] : undefined;
+                          return (
+                            <div
+                              key={c}
+                              className={`circle${color ? ` ${color}` : ""}`}
+                              onClick={() => {
+                                if (finishedSubjects[s.key]) return;
+                                // Cycle color: undefined -> green -> red -> yellow -> undefined
+                                let colorState = scores[t][si]._circleColors ? scores[t][si]._circleColors[c] : undefined;
+                                let nextColor;
+                                if (!colorState) nextColor = 'green';
+                                else if (colorState === 'green') nextColor = 'red';
+                                else if (colorState === 'red') nextColor = 'yellow';
+                                else if (colorState === 'yellow') nextColor = undefined;
+
+                                const updated = scores.map((teamArr, ti) =>
+                                  ti !== t
+                                    ? teamArr
+                                    : teamArr.map((mem, mi) => {
+                                        if (mi !== si) return mem;
+                                        const newCircleColors = { ...(mem._circleColors || {}) };
+                                        if (nextColor) newCircleColors[c] = nextColor;
+                                        else delete newCircleColors[c];
+                                        // For score logic, keep the original array logic (only green counts)
+                                        let newArr = mem.circles.filter((x: number) => x !== c);
+                                        if (nextColor === 'green') newArr = [...newArr, c];
+                                        return {
+                                          ...mem,
+                                          circles: newArr,
+                                          _circleColors: newCircleColors
+                                        };
+                                      })
+                                );
+                                setScores(updated);
+                              }}
+                            />
+                          );
+                        })}
                       </div>
                     </td>
                     <td>

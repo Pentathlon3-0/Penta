@@ -22,6 +22,7 @@ interface SubjectScore {
   playerId: string;          // chosen player from the team roster
   circles: number[];
   extra: number | "";
+  _circleColors?: { [circleIndex: number]: 'green' | 'red' | 'yellow' };
 }
 
 // coding score types (mirrors DashboardCoding)
@@ -258,7 +259,7 @@ const Round2Page = () => {
 
     // initialise empty score matrix
     const blankScores: SubjectScore[][] = finalTeams.map(team =>
-      SUBJECTS.map(() => ({ playerId: "", circles: [], extra: "" }))
+      SUBJECTS.map(() => ({ playerId: "", circles: [], extra: "", _circleColors: {} }))
     );
 
     // load any saved subject details so we can prefill
@@ -277,7 +278,28 @@ const Round2Page = () => {
         const si = SUBJECTS.findIndex(s => s.key === d.subject);
         if (si >= 0) {
           finalTeams.forEach((team, t) => {
-            blankScores[t][si].circles = d.performance?.[team.id] || [];
+            // New format: d.performance?.[team.id] is {green:[],red:[],yellow:[]}
+            const perf = d.performance?.[team.id];
+            if (perf && typeof perf === 'object' && ('green' in perf || 'red' in perf || 'yellow' in perf)) {
+              // Restore _circleColors and circles
+              const colorMap: { [circleIndex: number]: 'green' | 'red' | 'yellow' } = {};
+              let circles: number[] = [];
+              ['green','red','yellow'].forEach(color => {
+                (perf[color] || []).forEach((idx: number) => {
+                  colorMap[idx] = color as 'green' | 'red' | 'yellow';
+                  if (color === 'green') circles.push(idx);
+                });
+              });
+              blankScores[t][si]._circleColors = colorMap;
+              blankScores[t][si].circles = circles;
+            } else {
+              // fallback: old format (array of green indices)
+              blankScores[t][si].circles = Array.isArray(perf) ? perf : [];
+              blankScores[t][si]._circleColors = {};
+              (Array.isArray(perf) ? perf : []).forEach((idx: number) => {
+                blankScores[t][si]._circleColors[idx] = 'green';
+              });
+            }
             blankScores[t][si].extra = d.extras?.[team.id] ?? "";
             blankScores[t][si].playerId = d.players?.[team.id] || "";
           });
@@ -322,25 +344,42 @@ const Round2Page = () => {
       return;
     }
 
+
     // update local state and compute a fresh copy for persistence
     const updated = scores.map((team, ti) =>
       ti !== t
         ? team
-        : team.map((subj, si) =>
-            si !== sidx
-              ? subj
-              : {
-                  ...subj,
-                  circles: subj.circles.includes(c)
-                    ? subj.circles.filter(x => x !== c)
-                    : [...subj.circles, c]
-                }
-          )
+        : team.map((subj, si) => {
+            if (si !== sidx) return subj;
+            // Find the color state for this circle
+            let colorState = subj._circleColors ? subj._circleColors[c] : undefined;
+            let nextColor;
+            if (!colorState) nextColor = 'green';
+            else if (colorState === 'green') nextColor = 'red';
+            else if (colorState === 'red') nextColor = 'yellow';
+            else if (colorState === 'yellow') nextColor = undefined;
+
+            // Update _circleColors
+            const newCircleColors = { ...(subj._circleColors || {}) };
+            if (nextColor) newCircleColors[c] = nextColor;
+            else delete newCircleColors[c];
+
+            // For score logic, keep the original array logic (only green counts)
+            let newArr = subj.circles.filter((x) => x !== c);
+            if (nextColor === 'green') newArr = [...newArr, c];
+
+            return {
+              ...subj,
+              circles: newArr,
+              _circleColors: newCircleColors
+            };
+          })
     );
 
     setScores(updated);
 
-    await upsertSubjectDetail(sidx);
+    // Pass updated scores to upsertSubjectDetail to ensure correct color is saved
+    await upsertSubjectDetail(sidx, false, updated);
 
     // build JSON containing arrays of marked circles per subject
     // and individual extra values keyed by <subject>extra
@@ -365,7 +404,21 @@ const Round2Page = () => {
 
   const subjectTotal = (m: SubjectScore) => {
     const extra = m.extra === "" ? 0 : m.extra;
-    return m.circles.length * 2 + extra * m.circles.length;
+    // Count circles by color
+    let green = 0, yellow = 0, red = 0;
+    if (m._circleColors) {
+      Object.values(m._circleColors).forEach(color => {
+        if (color === 'green') green++;
+        else if (color === 'yellow') yellow++;
+        else if (color === 'red') red++;
+      });
+    } else {
+      // fallback: all are green
+      green = m.circles.length;
+    }
+    // Calculation: green*2 + yellow*1 + red*(-1) + extra*count for each color
+    const total = (green * 2 + yellow * 1 + red * -1) + extra * (green + yellow -red);
+    return total;
   };
 
   const teamTotal = (t: number, arr?: SubjectScore[][]) => {
@@ -444,16 +497,28 @@ const Round2Page = () => {
   };
 
   // helper to persist detail info per subject
-  const upsertSubjectDetail = async (si: number, status: boolean = false) => {
+  // Accepts optional scoresOverride for correct state
+  const upsertSubjectDetail = async (si: number, status: boolean = false, scoresOverride?: SubjectScore[][]) => {
     const key = SUBJECTS[si].key;
-    const performance: Record<string, number[]> = {};
+    const performance: Record<string, { green: number[]; red: number[]; yellow: number[] }> = {};
     const extras: Record<string, number> = {};
     const players: Record<string, string> = {};
+    const srcScores = scoresOverride || scores;
 
     teams.forEach((team, t) => {
-      performance[team.id] = scores[t][si].circles;
-      extras[team.id] = scores[t][si].extra === "" ? 0 : (scores[t][si].extra as number);
-      players[team.id] = scores[t][si].playerId;
+      // Build color arrays from _circleColors
+      const colorMap = srcScores[t][si]._circleColors || {};
+      const green: number[] = [];
+      const red: number[] = [];
+      const yellow: number[] = [];
+      Object.entries(colorMap).forEach(([idx, color]) => {
+        if (color === 'green') green.push(Number(idx));
+        else if (color === 'red') red.push(Number(idx));
+        else if (color === 'yellow') yellow.push(Number(idx));
+      });
+      performance[team.id] = { green, red, yellow };
+      extras[team.id] = srcScores[t][si].extra === "" ? 0 : (srcScores[t][si].extra as number);
+      players[team.id] = srcScores[t][si].playerId;
     });
 
     const { data, error } = await (supabase as any)
@@ -639,12 +704,11 @@ const Round2Page = () => {
                               <div className="circle-group">
                                 {[0, 1, 2, 3, 4].map(c => {
                                   const takenByOther = scores.some((teamArr, ti) => ti !== t && teamArr && teamArr[si] && teamArr[si].circles && teamArr[si].circles.includes(c));
+                                  const color = scores[t][si]._circleColors ? scores[t][si]._circleColors[c] : undefined;
                                   return (
                                     <div
                                       key={c}
-                                      className={`circle ${
-                                        scores[t][si].circles.includes(c) ? "active" : ""
-                                      } ${takenByOther ? "disabled" : ""}`}
+                                      className={`circle${color ? ` ${color}` : ""}${takenByOther ? " disabled" : ""}`}
                                       onClick={() => {
                                         if (finishedSubjects[SUBJECTS[si].key] || takenByOther) return;
                                         toggleCircle(t, si, c);

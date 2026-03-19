@@ -287,6 +287,19 @@
   cursor: pointer;
 }
 
+/* Circle color states for Qualifier Round 1 */
+.circle.green {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+.circle.red {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.circle.yellow {
+  background: #facc15;
+  border-color: #facc15;
+}
 .circle.active {
   background: #22c55e;
   border-color: #22c55e;
