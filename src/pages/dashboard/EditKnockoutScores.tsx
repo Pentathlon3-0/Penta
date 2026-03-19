@@ -25,20 +25,22 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
             .eq("subject", subj.key);
         }
         // Fetch both Knockout 1 and Knockout 2 round IDs
-        const { data: rounds } = await supabase
+        const { data: rounds, error: roundsError } = await supabase
           .from("rounds")
           .select("id,name")
           .in("name", ["Knockout 1", "Knockout 2"]);
+        if (roundsError) throw new Error("Failed to fetch rounds: " + roundsError.message);
         if (!rounds || rounds.length < 2) throw new Error("Round 1 or 2 data missing");
         const r1 = rounds.find((r: any) => r.name === "Knockout 1");
         const r2 = rounds.find((r: any) => r.name === "Knockout 2");
         if (!r1 || !r2) throw new Error("Knockout rounds not found");
         // Fetch all scores for both rounds
-        const { data: allScores } = await supabase
+        const { data: allScores, error: scoresError } = await supabase
           .from("scores")
           .select("team_id, points, round_id")
           .in("round_id", [r1.id, r2.id]);
-        if (!allScores) throw new Error("No scores data");
+        if (scoresError) throw new Error("Failed to fetch scores: " + scoresError.message);
+        if (!allScores || allScores.length === 0) throw new Error("No scores data");
         // Sum points for each team across both rounds
         const totals: Record<string, number> = {};
         allScores.forEach((s: any) => {
@@ -50,58 +52,64 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
           .slice(0, 5)
           .map(x => x[0]);
         // Fetch team info for these school_ids
-        const { data: teamRows } = await supabase.from("teams").select("id, name").in("id", sortedTeamIds);
-        setTeams(teamRows || []);
+        const { data: teamRows, error: teamError } = await supabase.from("teams").select("id, name").in("id", sortedTeamIds);
+        if (teamError) throw new Error("Failed to fetch teams: " + teamError.message);
+        if (!teamRows || teamRows.length === 0) throw new Error("No teams found for Knockout Round 1");
+        setTeams(teamRows);
         // Fetch all players for these teams
-        const teamIds = (teamRows || []).map(t => t.id);
-        const { data: playerRows } = await supabase.from("players").select("id, name, team_id").in("team_id", teamIds);
+        const teamIds = teamRows.map(t => t.id);
+        const { data: playerRows, error: playerError } = await supabase.from("players").select("id, name, team_id").in("team_id", teamIds);
+        if (playerError) throw new Error("Failed to fetch players: " + playerError.message);
         const playerMap: Record<string, string> = {};
         (playerRows || []).forEach((p: any) => { playerMap[p.id] = p.name; });
         setPlayers(playerMap);
         // Fetch details for all subjects
-        const { data: details } = await (supabase.from("qualifier1_details" as any) as any).select("subject, performance, extras, players, status");
+        const { data: details, error: detailsError } = await (supabase.from("qualifier1_details" as any) as any).select("subject, performance, extras, players, status");
+        if (detailsError) throw new Error("Failed to fetch qualifier1_details: " + detailsError.message);
+        if (!details || details.length === 0) throw new Error("No qualifier1_details found. Please check data entry.");
+        // Debug: log the raw details loaded from the database
+        console.log("[DEBUG] qualifier1_details loaded:", details);
         // Build scores matrix for only top 5 teams
-        const blankScores: any[][] = (teamRows || []).map(team =>
+        const blankScores: any[][] = teamRows.map(team =>
           SUBJECTS.map(() => ({ playerId: "", circles: [], extra: "", _circleColors: {} }))
         );
         const finished: Record<string, boolean> = {};
-        if (details) {
-          details.forEach((d: any) => {
-            if (d.status === true) finished[d.subject] = true;
-            const si = SUBJECTS.findIndex(s => s.key === d.subject);
-            if (si >= 0) {
-              (teamRows || []).forEach((team, t) => {
-                // New format: d.performance?.[team.id] is {green:[],red:[],yellow:[]}
-                const perf = d.performance?.[team.id];
-                if (perf && typeof perf === 'object' && ('green' in perf || 'red' in perf || 'yellow' in perf)) {
-                  const colorMap: { [circleIndex: number]: 'green' | 'red' | 'yellow' } = {};
-                  let circles: number[] = [];
-                  ['green','red','yellow'].forEach(color => {
-                    (perf[color] || []).forEach((idx: number) => {
-                      colorMap[idx] = color as 'green' | 'red' | 'yellow';
-                      if (color === 'green') circles.push(idx);
-                    });
+        details.forEach((d: any) => {
+          if (d.status === true) finished[d.subject] = true;
+          const si = SUBJECTS.findIndex(s => s.key === d.subject);
+          if (si >= 0) {
+            teamRows.forEach((team, t) => {
+              // New format: d.performance?.[team.id] is {green:[],red:[],yellow:[]}
+              const perf = d.performance?.[team.id];
+              if (perf && typeof perf === 'object' && ('green' in perf || 'red' in perf || 'yellow' in perf)) {
+                const colorMap: { [circleIndex: number]: 'green' | 'red' | 'yellow' } = {};
+                let circles: number[] = [];
+                ['green','red','yellow'].forEach(color => {
+                  (perf[color] || []).forEach((idx: number) => {
+                    colorMap[idx] = color as 'green' | 'red' | 'yellow';
+                    if (color === 'green') circles.push(idx);
                   });
-                  blankScores[t][si]._circleColors = colorMap;
-                  blankScores[t][si].circles = circles;
-                } else {
-                  // fallback: old format (array of green indices)
-                  blankScores[t][si].circles = Array.isArray(perf) ? perf : [];
-                  blankScores[t][si]._circleColors = {};
-                  (Array.isArray(perf) ? perf : []).forEach((idx: number) => {
-                    blankScores[t][si]._circleColors[idx] = 'green';
-                  });
-                }
-                blankScores[t][si].extra = d.extras?.[team.id] ?? "";
-                blankScores[t][si].playerId = d.players?.[team.id] || "";
-              });
-            }
-          });
-        }
+                });
+                blankScores[t][si]._circleColors = colorMap;
+                blankScores[t][si].circles = circles;
+              } else {
+                // fallback: old format (array of green indices)
+                blankScores[t][si].circles = Array.isArray(perf) ? perf : [];
+                blankScores[t][si]._circleColors = {};
+                (Array.isArray(perf) ? perf : []).forEach((idx: number) => {
+                  blankScores[t][si]._circleColors[idx] = 'green';
+                });
+              }
+              blankScores[t][si].extra = d.extras?.[team.id] ?? "";
+              blankScores[t][si].playerId = d.players?.[team.id] || "";
+            });
+          }
+        });
         setScores(blankScores);
         setFinishedSubjects(finished);
       } catch (e: any) {
-        setError(e.message);
+        setError(e.message || String(e));
+        console.error("Error loading Qualifier Round 1 Edit:", e);
       }
       setLoading(false);
     })();
@@ -245,14 +253,21 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
                     <td>
                       <div className="circle-group">
                         {[0, 1, 2, 3, 4].map(c => {
+                          // Prevent multiple teams from marking the same circle index as green for the same subject
+                          const isGreenElsewhere = teams.some((_, otherIdx) =>
+                            otherIdx !== t &&
+                            scores[otherIdx] &&
+                            scores[otherIdx][si] &&
+                            scores[otherIdx][si]._circleColors &&
+                            scores[otherIdx][si]._circleColors[c] === 'green'
+                          );
                           const color = scores[t][si]._circleColors ? scores[t][si]._circleColors[c] : undefined;
                           return (
                             <div
                               key={c}
-                              className={`circle${color ? ` ${color}` : ""}`}
+                              className={`circle${color ? ` ${color}` : ""}${isGreenElsewhere ? ' disabled' : ''}`}
                               onClick={() => {
                                 if (finishedSubjects[s.key]) return;
-                                // Cycle color: undefined -> green -> red -> yellow -> undefined
                                 let colorState = scores[t][si]._circleColors ? scores[t][si]._circleColors[c] : undefined;
                                 let nextColor;
                                 if (!colorState) nextColor = 'green';
@@ -278,8 +293,17 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
                                         };
                                       })
                                 );
+                                console.log('[DEBUG] Circle clicked:', {
+                                  team: t,
+                                  subject: si,
+                                  circle: c,
+                                  prevColor: colorState,
+                                  nextColor,
+                                  updatedCell: updated[t][si]
+                                });
                                 setScores(updated);
                               }}
+                              style={isGreenElsewhere && (!color || color === 'green') ? { pointerEvents: 'auto', opacity: 0.5 } : {}}
                             />
                           );
                         })}
@@ -821,7 +845,32 @@ const EditKnockoutScores: React.FC = () => {
         detailMap[row.team_id] = row;
       });
       // For round1Details and round2Details, always build arrays in teams order
-      setRound1Details((teamsData || []).map((team: any) => detailMap[team.id] || { team_id: team.id, choices: {} }));
+      // Restore _circleColors from backend choices (green/yellow/red arrays)
+      setRound1Details((teamsData || []).map((team: any) => {
+        const det = detailMap[team.id];
+        if (!det || !det.choices) return { team_id: team.id, choices: {}, _circleColors: {} };
+        // Build _circleColors from choices
+        const _circleColors: any = {};
+        SUBJECTS.forEach(s => {
+          _circleColors[s.key] = {};
+          if (det.choices.green && Array.isArray(det.choices.green[s.key])) {
+            det.choices.green[s.key].forEach((idx: number) => {
+              _circleColors[s.key][idx] = 'green';
+            });
+          }
+          if (det.choices.yellow && Array.isArray(det.choices.yellow[s.key])) {
+            det.choices.yellow[s.key].forEach((idx: number) => {
+              _circleColors[s.key][idx] = 'yellow';
+            });
+          }
+          if (det.choices.red && Array.isArray(det.choices.red[s.key])) {
+            det.choices.red[s.key].forEach((idx: number) => {
+              _circleColors[s.key][idx] = 'red';
+            });
+          }
+        });
+        return { ...det, _circleColors };
+      }));
       setRound2Details((teamsData || []).map((team: any) => detailMap[team.id] || { team_id: team.id, round2_score: 0 }));
     } catch (err) {
       setError("Failed to fetch data");
@@ -894,18 +943,37 @@ const EditKnockoutScores: React.FC = () => {
         }
         for (let i = 0; i < round1Details.length; i++) {
           const row = round1Details[i];
-          await (supabase.from("round1_details" as any) as any).update({ choices: row.choices }).eq("team_id", row.team_id);
-          // Calculate total exactly as in Round1Page
-          const choices = countsToChoices(row.choices || {});
+          // Build choices (green/yellow/red arrays) from _circleColors
+          const colorMap = row._circleColors || {};
+          const green: Record<string, number[]> = {};
+          const yellow: Record<string, number[]> = {};
+          const red: Record<string, number[]> = {};
+          SUBJECTS.forEach(sub => {
+            green[sub.key] = [];
+            yellow[sub.key] = [];
+            red[sub.key] = [];
+            if (colorMap[sub.key]) {
+              Object.entries(colorMap[sub.key]).forEach(([idx, color]) => {
+                if (color === 'green') green[sub.key].push(Number(idx));
+                else if (color === 'yellow') yellow[sub.key].push(Number(idx));
+                else if (color === 'red') red[sub.key].push(Number(idx));
+              });
+            }
+          });
+          // Upsert to round1_details
+          await (supabase.from("round1_details" as any) as any).update({ choices: { green, yellow, red } }).eq("team_id", row.team_id);
+          // Calculate total using color logic
           let sum = 0;
           SUBJECTS.forEach(sub => {
-            sum += (choices[sub.key]?.length || 0) * sub.credit;
+            let g = green[sub.key].length;
+            let y = yellow[sub.key].length;
+            let r = red[sub.key].length;
+            const circleCount = 2 * g + 1 * y - 1 * r;
+            sum += circleCount * sub.credit;
           });
-          // In Round1Page, total is Math.round(total * 40)
           const total = Math.round((sum / 10) * 40);
           await (supabase.from("livescore" as any) as any).upsert({ school_id: row.team_id, round1_final: total }, { onConflict: "school_id" });
           // Upsert score for this team (include id for upsert to work)
-          // First, try to find existing score row for this round/team
           let scoreId = undefined;
           const { data: existingScore } = await supabase.from("scores").select("id").eq("round_id", roundId).eq("team_id", row.team_id).maybeSingle();
           if (existingScore && existingScore.id) scoreId = existingScore.id;
@@ -1100,9 +1168,18 @@ const EditKnockoutScores: React.FC = () => {
                     // ...existing code...
                     const detail = round1Details.find(row => row.team_id === team.id) || { team_id: team.id, choices: {} };
                     const choices = countsToChoices(detail.choices || {});
+                    // Calculate score based on color logic (green=2, yellow=1, red=-1)
                     let sum = 0;
                     SUBJECTS.forEach(sub => {
-                      sum += (choices[sub.key]?.length || 0) * sub.credit;
+                      const colors = round1Details[tIndex]?._circleColors?.[sub.key] || {};
+                      let green = 0, yellow = 0, red = 0;
+                      Object.values(colors).forEach(color => {
+                        if (color === 'green') green++;
+                        else if (color === 'yellow') yellow++;
+                        else if (color === 'red') red++;
+                      });
+                      const circleCount = 2 * green + 1 * yellow - 1 * red;
+                      sum += circleCount * sub.credit;
                     });
                     // Match Round1Page: Math.round(total * 40)
                     const total = Math.round((sum / 10) * 40);
@@ -1112,13 +1189,44 @@ const EditKnockoutScores: React.FC = () => {
                         {SUBJECTS.map(sub => (
                           <td key={sub.key}>
                             <div className="circle-group">
-                              {[0, 1, 2, 3, 4].map(c => (
-                                <div
-                                  key={c}
-                                  className={`circle-r1 ${choices[sub.key]?.includes(c) ? "active" : ""}`}
-                                  onClick={() => handleRound1Circle(tIndex, sub.key, c)}
-                                />
-                              ))}
+                              {[0, 1, 2, 3, 4].map(c => {
+                                // Find or create _circleColors for this team/subject
+                                if (!round1Details[tIndex]._circleColors) round1Details[tIndex]._circleColors = {};
+                                if (!round1Details[tIndex]._circleColors[sub.key]) round1Details[tIndex]._circleColors[sub.key] = {};
+                                const color = round1Details[tIndex]._circleColors[sub.key][c];
+                                // Prevent multiple teams from marking the same circle index as green for the same subject
+                                const isGreenElsewhere = teams.some((_, otherIdx) =>
+                                  otherIdx !== tIndex &&
+                                  round1Details[otherIdx]?._circleColors &&
+                                  round1Details[otherIdx]._circleColors[sub.key]?.[c] === 'green'
+                                );
+                                return (
+                                  <div
+                                    key={c}
+                                    className={`circle-r1${color === 'green' ? ' active' : ''}${color === 'red' ? ' red' : ''}${color === 'yellow' ? ' yellow' : ''}${isGreenElsewhere ? ' disabled' : ''}`}
+                                    onClick={() => {
+                                      if (isGreenElsewhere) return;
+                                      // Color cycle: empty → green → red → yellow → empty
+                                      let nextColor;
+                                      if (!color) nextColor = 'green';
+                                      else if (color === 'green') nextColor = 'red';
+                                      else if (color === 'red') nextColor = 'yellow';
+                                      else if (color === 'yellow') nextColor = undefined;
+                                      // Update _circleColors
+                                      setRound1Details(prev => prev.map((row, idx) => {
+                                        if (idx !== tIndex) return row;
+                                        const newColors = { ...(row._circleColors || {}) };
+                                        const subjColors = { ...(newColors[sub.key] || {}) };
+                                        if (nextColor) subjColors[c] = nextColor;
+                                        else delete subjColors[c];
+                                        newColors[sub.key] = subjColors;
+                                        return { ...row, _circleColors: newColors };
+                                      }));
+                                    }}
+                                    style={isGreenElsewhere ? { pointerEvents: 'none', opacity: 0.5 } : {}}
+                                  />
+                                );
+                              })}
                             </div>
                           </td>
                         ))}
