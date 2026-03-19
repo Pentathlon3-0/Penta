@@ -300,7 +300,7 @@ const Round1Page = () => {
         else if (color === 'yellow') yellow++;
         else if (color === 'red') red++;
       });
-      const circleCount = 2 * green + 1 * yellow - 2 * red;
+      const circleCount = 2 * green + 1 * yellow - 1 * red;
       sum += circleCount * sub.credit;
     });
     return Number((sum / TOTAL_CREDIT).toFixed(2));
@@ -355,26 +355,12 @@ const Round1Page = () => {
 
     await supabase.from("scores").delete().eq("round_id", roundId);
 
-    // First get Knockout 1 scores to calculate combined total
-    const ko1Round = await supabase.from("rounds").select("id").eq("name", "Knockout 1").single();
-    let ko1Scores: { team_id: string; points: number }[] = [];
-    if (ko1Round.data) {
-      const { data } = await supabase.from("scores").select("team_id, points").eq("round_id", ko1Round.data.id);
-      ko1Scores = data || [];
-    }
-
-    // Save combined: (Knockout 1 * 100) + Knockout 2
-    const inserts = teams.map((team, index) => {
-      const ko1 = ko1Scores.find(s => s.team_id === team.id)?.points || 0;
-      const ko2 = Number(round2Scores[index] || 0);
-      const combinedTotal = ko1 + ko2;
-      
-      return {
-        round_id: roundId,
-        team_id: team.id,
-        points: combinedTotal
-      };
-    });
+    // Save only Knockout 2 score (raw input)
+    const inserts = teams.map((team, index) => ({
+      round_id: roundId,
+      team_id: team.id,
+      points: Number(round2Scores[index] || 0)
+    }));
 
     await supabase.from("scores").insert(inserts);
 
