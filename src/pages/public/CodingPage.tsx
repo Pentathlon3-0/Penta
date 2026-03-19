@@ -215,6 +215,7 @@ export default function CodingPage() {
   const handleSubmit = async () => {
     setSubmitted(true);
     const userHTML = buildUserHTML();
+    const time_remaining = timeLeft;
 
     const { data: existing } = await supabase
       .from("coding_submissions")
@@ -237,6 +238,7 @@ export default function CodingPage() {
           final_output: userHTML,
           submitted: true,
           enabled: false,
+          time_remaining,
         })
         .eq("id", existing.id);
     } else {
@@ -247,6 +249,7 @@ export default function CodingPage() {
         final_output: userHTML,
         submitted: true,
         enabled: false,
+        time_remaining,
       });
     }
 

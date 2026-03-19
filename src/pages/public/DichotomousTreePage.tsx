@@ -286,6 +286,39 @@ function createBranch(
         }
         return s;
       };
+
+      // --- Feature slot delete button logic ---
+      const addFeatureSlotDelete = (slot: HTMLElement, side: 'left' | 'right') => {
+        // Remove any previous button
+        let btn = slot.querySelector('.animal-remove-btn');
+        if (btn) btn.remove();
+        if (!slot.innerText || slot.innerText === 'Drop Feature') return;
+        // Create delete button
+        btn = document.createElement('button');
+        const btnEl = btn as HTMLButtonElement;
+        btnEl.innerText = '×';
+        btnEl.title = 'Remove feature';
+        btnEl.className = 'animal-remove-btn';
+        btnEl.onclick = (e) => {
+          e.stopPropagation();
+          if (side === 'left') featL = '';
+          else featR = '';
+          slot.innerText = 'Drop Feature';
+          slot.style.borderStyle = 'dashed';
+          updateUI();
+          setTimeout(() => {
+            const root = document.getElementById('tree-root');
+            if (root && root.firstElementChild) saveTreeState();
+          }, 0);
+        };
+        slot.appendChild(btnEl);
+        // Show button only on hover
+        slot.onmouseenter = () => { btnEl.style.display = 'inline'; };
+        slot.onmouseleave = () => { btnEl.style.display = 'none'; };
+        btnEl.style.display = 'none';
+        // Ensure slot is positioned
+        (slot as HTMLElement).style.position = 'relative';
+      };
       const zl = ui.querySelector("#zone-l") as HTMLElement;
       zl.innerHTML = "";
       leftSide.forEach((n) => zl.appendChild(makeDraggable(n, 'left')));
@@ -297,6 +330,12 @@ function createBranch(
         leftSide.length + rightSide.length === animals.length &&
         leftSide.length > 0 && rightSide.length > 0
       );
+
+      // Add feature slot delete dropdowns if features are present
+      const slotL = ui.querySelector('#slot-l') as HTMLElement;
+      const slotR = ui.querySelector('#slot-r') as HTMLElement;
+      if (slotL) addFeatureSlotDelete(slotL, 'left');
+      if (slotR) addFeatureSlotDelete(slotR, 'right');
       // Do NOT call saveTreeState here; only after drop/removal/split
     };
 

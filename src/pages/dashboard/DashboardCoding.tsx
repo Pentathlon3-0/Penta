@@ -22,6 +22,7 @@ interface CodingSub {
   final_output: string | null;
   submitted: boolean;
   enabled: boolean;
+  time_remaining?: number;
 }
 
 interface BlankRow {
@@ -215,63 +216,74 @@ export default function DashboardCoding() {
                 <TableHead>School</TableHead>
                 <TableHead>Match %</TableHead>
                 <TableHead>Check Attempts</TableHead>
+                <TableHead>Time Remaining</TableHead>
                 <TableHead>Status</TableHead>
                 {isAdmin && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subs.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-medium">{s.school_name}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${s.percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-sm">{s.percentage}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{s.check_attempts}</TableCell>
-                  <TableCell>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      s.submitted && !s.enabled
-                        ? "bg-primary/10 text-primary"
-                        : s.submitted && s.enabled
-                        ? "bg-green-500/10 text-green-600"
-                        : !s.submitted && s.enabled
-                        ? "bg-yellow-500/10 text-yellow-600"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      {s.submitted && !s.enabled
-                        ? "Submitted (Locked)"
-                        : s.submitted && s.enabled
-                        ? "Re-enabled"
-                        : "In Progress"}
-                    </span>
-                  </TableCell>
-                  {isAdmin && (
+              {subs.map((s) => {
+                // Format time_remaining as mm:ss
+                let timeStr = "-";
+                if (typeof s.time_remaining === "number" && s.time_remaining >= 0) {
+                  const m = Math.floor(s.time_remaining / 60);
+                  const sec = s.time_remaining % 60;
+                  timeStr = `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+                }
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">{s.school_name}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => enableSchool(s.id)}>
-                          <Unlock className="h-4 w-4 mr-1" /> Re-enable
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => resetSubmission(s.id)}>
-                          <RotateCcw className="h-4 w-4 mr-1" /> Reset
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteSubmission(s.id)}>
-                          <Trash2 className="h-4 w-4 mr-1" /> Delete
-                        </Button>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full"
+                            style={{ width: `${s.percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-sm">{s.percentage}%</span>
                       </div>
                     </TableCell>
-                  )}
-                </TableRow>
-              ))}
+                    <TableCell>{s.check_attempts}</TableCell>
+                    <TableCell>{timeStr}</TableCell>
+                    <TableCell>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        s.submitted && !s.enabled
+                          ? "bg-primary/10 text-primary"
+                          : s.submitted && s.enabled
+                          ? "bg-green-500/10 text-green-600"
+                          : !s.submitted && s.enabled
+                          ? "bg-yellow-500/10 text-yellow-600"
+                          : "bg-muted text-muted-foreground"
+                      }`}>
+                        {s.submitted && !s.enabled
+                          ? "Submitted (Locked)"
+                          : s.submitted && s.enabled
+                          ? "Re-enabled"
+                          : "In Progress"}
+                      </span>
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => enableSchool(s.id)}>
+                            <Unlock className="h-4 w-4 mr-1" /> Re-enable
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => resetSubmission(s.id)}>
+                            <RotateCcw className="h-4 w-4 mr-1" /> Reset
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteSubmission(s.id)}>
+                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
               {subs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 5 : 4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="text-center text-muted-foreground py-8">
                     No coding submissions yet.
                   </TableCell>
                 </TableRow>
