@@ -484,8 +484,20 @@ const Round2Page = () => {
     const inserts = teams.map((team, t) => {
       const m = scores[t][si];
       const credit = SUBJECTS[si].credit;
+      // Count circles by color
+      let green = 0, yellow = 0, red = 0;
+      if (m._circleColors) {
+        Object.values(m._circleColors).forEach(color => {
+          if (color === 'green') green++;
+          else if (color === 'yellow') yellow++;
+          else if (color === 'red') red++;
+        });
+      } else {
+        green = m.circles.length;
+      }
       const extra = m.extra === "" ? 0 : m.extra;
-      const total = (m.circles.length * 2 + extra * m.circles.length) * credit;
+      // New logic: (green*2 + yellow*1 + red*-1) + extra*(green+yellow-red)
+      const total = (green * 2 + yellow * 1 + red * -1 + extra * (green + yellow - red)) * credit;
       return {
         round_id: roundId,
         team_id: team.id,
@@ -494,6 +506,33 @@ const Round2Page = () => {
       };
     });
     await supabase.from("scores").insert(inserts);
+
+    // Update qualifier_round1_live in livescore for each team with new color-based JSON
+    for (let t = 0; t < teams.length; t++) {
+      const team = teams[t];
+      const teamScores = scores[t];
+      const liveObj = {};
+      SUBJECTS.forEach((sub, j) => {
+        const m = teamScores[j];
+        // Build color arrays for each subject
+        const colorMap = m._circleColors || {};
+        const green = [], yellow = [], red = [];
+        Object.entries(colorMap).forEach(([idx, color]) => {
+          if (color === 'green') green.push(Number(idx));
+          else if (color === 'yellow') yellow.push(Number(idx));
+          else if (color === 'red') red.push(Number(idx));
+        });
+        // Save as {green:[],yellow:[],red:[]}
+        if (green.length || yellow.length || red.length) {
+          liveObj[sub.key] = { green, yellow, red };
+        }
+        const ex = m.extra;
+        if (ex !== "" && ex !== 0) {
+          liveObj[`${sub.key}extra`] = ex;
+        }
+      });
+      await updateLiveScore(team.id, { qualifier_round1_live: liveObj });
+    }
   };
 
   // helper to persist detail info per subject
