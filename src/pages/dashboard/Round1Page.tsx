@@ -64,13 +64,24 @@ const Round1Page = () => {
   };
 
   /* ---------- LOAD TEAMS ---------- */
-  /* helpers to convert between the internal array form and a compact jsonb summary */
-  const choicesToCounts = (choices: any) => {
-    return SUBJECTS.reduce((obj, s) => {
-      const arr = choices[s.key] || [];
-      obj[s.key] = arr.length;
-      return obj;
-    }, {} as Record<string, number>);
+  // Convert UI color state to new choices format for DB (arrays of indices)
+  const choicesToColorFormat = (circleColors: any) => {
+    const green: Record<string, number[]> = {};
+    const yellow: Record<string, number[]> = {};
+    const red: Record<string, number[]> = {};
+    SUBJECTS.forEach(s => {
+      green[s.key] = [];
+      yellow[s.key] = [];
+      red[s.key] = [];
+      if (circleColors && circleColors[s.key]) {
+        Object.entries(circleColors[s.key]).forEach(([idx, color]) => {
+          if (color === 'green') green[s.key].push(Number(idx));
+          if (color === 'yellow') yellow[s.key].push(Number(idx));
+          if (color === 'red') red[s.key].push(Number(idx));
+        });
+      }
+    });
+    return { green, yellow, red };
   };
 
   // helper to upsert a live score row for a team (identified by school/team id)
@@ -109,9 +120,12 @@ const Round1Page = () => {
     setTeams(data || []);
 
     // prepare empty structures
-    const emptyScores = (data || []).map(() =>
-      Object.fromEntries(SUBJECTS.map(s => [s.key, []]))
-    );
+    // Use plain object for emptyScores
+    const emptyScores = (data || []).map(() => {
+      const obj: any = Object.fromEntries(SUBJECTS.map(s => [s.key, []]));
+      obj._circleColors = {};
+      return obj;
+    });
     const emptyR2 = (data || []).map(() => "" as number | "");
 
     setScores(emptyScores);
@@ -130,7 +144,37 @@ const Round1Page = () => {
         prev.map((_, idx) => {
           const team = data![idx];
           const det = detailMap.get(team.id);
-          return det ? countsToChoices(det.choices) : prev[idx];
+          if (!det || !det.choices) return prev[idx];
+          // Restore _circleColors from choices (arrays)
+          const _circleColors: any = {};
+          SUBJECTS.forEach(s => {
+            _circleColors[s.key] = {};
+            if (det.choices.green && Array.isArray(det.choices.green[s.key])) {
+              det.choices.green[s.key].forEach((idx: number) => {
+                _circleColors[s.key][idx] = 'green';
+              });
+            }
+            if (det.choices.yellow && Array.isArray(det.choices.yellow[s.key])) {
+              det.choices.yellow[s.key].forEach((idx: number) => {
+                _circleColors[s.key][idx] = 'yellow';
+              });
+            }
+            if (det.choices.red && Array.isArray(det.choices.red[s.key])) {
+              det.choices.red[s.key].forEach((idx: number) => {
+                _circleColors[s.key][idx] = 'red';
+              });
+            }
+          });
+          // Only green indices go into the score array
+          const obj: any = Object.fromEntries(SUBJECTS.map(s => [s.key, []]));
+          SUBJECTS.forEach(s => {
+            obj[s.key] = [];
+            if (det.choices.green && Array.isArray(det.choices.green[s.key])) {
+              obj[s.key] = det.choices.green[s.key];
+            }
+          });
+          obj._circleColors = _circleColors;
+          return obj;
         })
       );
       setRound2Scores(prev =>
@@ -199,12 +243,26 @@ const Round1Page = () => {
   const toggleCircle = async (teamIndex: number, subjectKey: string, circleIndex: number) => {
     if (round1Locked) return;
 
+    // Find the color state for this circle
     const updated = [...scores];
     const arr = updated[teamIndex][subjectKey] || [];
+    // We'll use a parallel color state array for UI
+    if (!updated[teamIndex]._circleColors) updated[teamIndex]._circleColors = {};
+    if (!updated[teamIndex]._circleColors[subjectKey]) updated[teamIndex]._circleColors[subjectKey] = {};
+    const color = updated[teamIndex]._circleColors[subjectKey][circleIndex];
 
-    updated[teamIndex][subjectKey] = arr.includes(circleIndex)
-      ? arr.filter((c: number) => c !== circleIndex)
-      : [...arr, circleIndex];
+    let nextColor;
+    if (!color) nextColor = 'green';
+    else if (color === 'green') nextColor = 'red';
+    else if (color === 'red') nextColor = 'yellow';
+    else if (color === 'yellow') nextColor = undefined;
+
+    updated[teamIndex]._circleColors[subjectKey][circleIndex] = nextColor;
+
+    // For score logic, keep the original array logic (only green counts)
+    let newArr = arr.filter((c) => c !== circleIndex);
+    if (nextColor === 'green') newArr = [...newArr, circleIndex];
+    updated[teamIndex][subjectKey] = newArr;
 
     setScores(updated);
 
@@ -214,7 +272,7 @@ const Round1Page = () => {
       const { data: upsertData, error } = await (supabase as any)
         .from("round1_details")
         .upsert(
-          { team_id: team.id, team_name: team.name, choices: choicesToCounts(updated[teamIndex]) },
+          { team_id: team.id, team_name: team.name, choices: choicesToColorFormat(updated[teamIndex]._circleColors) },
           { onConflict: "team_id" }
         );
       if (error) {
@@ -235,7 +293,15 @@ const Round1Page = () => {
   const calculateRound1Total = (teamIndex: number) => {
     let sum = 0;
     SUBJECTS.forEach(sub => {
-      sum += (scores[teamIndex]?.[sub.key]?.length || 0) * sub.credit;
+      const colors = scores[teamIndex]?._circleColors?.[sub.key] || {};
+      let green = 0, yellow = 0, red = 0;
+      Object.values(colors).forEach(color => {
+        if (color === 'green') green++;
+        else if (color === 'yellow') yellow++;
+        else if (color === 'red') red++;
+      });
+      const circleCount = 2 * green + 1 * yellow - 2 * red;
+      sum += circleCount * sub.credit;
     });
     return Number((sum / TOTAL_CREDIT).toFixed(2));
   };
@@ -246,7 +312,7 @@ const Round1Page = () => {
     const rows: any[] = teams.map((team, index) => ({
       team_id: team.id,
       team_name: team.name,
-      choices: choicesToCounts(scores[index])
+      choices: choicesToColorFormat(scores[index]._circleColors)
     }));
     console.log("saving batch details", rows);
     const { data, error } = await (supabase as any)
@@ -363,19 +429,38 @@ const Round1Page = () => {
                       {SUBJECTS.map(sub => (
                         <td key={sub.key}>
                           <div className="circle-group">
-                            {[0, 1, 2, 3, 4].map(c => (
-                              <div
-                                key={c}
-                                className={`circle-r1 ${
-                                  scores[tIndex]?.[sub.key]?.includes(c)
-                                    ? "active"
-                                    : ""
-                                }`}
-                                onClick={() =>
-                                  toggleCircle(tIndex, sub.key, c)
-                                }
-                              />
-                            ))}
+                            {[0, 1, 2, 3, 4].map(c => {
+                              // Check if this circle index for this subject is green for any other team
+                              const isGreenElsewhere = teams.some((_, otherIdx) =>
+                                otherIdx !== tIndex &&
+                                scores[otherIdx]?._circleColors &&
+                                scores[otherIdx]._circleColors[sub.key]?.[c] === 'green'
+                              );
+                              return (
+                                <div
+                                  key={c}
+                                  className={`circle-r1${
+                                    scores[tIndex]?._circleColors && scores[tIndex]?._circleColors[sub.key]?.[c] === 'green'
+                                      ? ' active'
+                                      : ''
+                                  }${
+                                    scores[tIndex]?._circleColors && scores[tIndex]?._circleColors[sub.key]?.[c] === 'red'
+                                      ? ' red'
+                                      : ''
+                                  }${
+                                    scores[tIndex]?._circleColors && scores[tIndex]?._circleColors[sub.key]?.[c] === 'yellow'
+                                      ? ' yellow'
+                                      : ''
+                                  }${
+                                    isGreenElsewhere ? ' disabled' : ''
+                                  }`}
+                                  onClick={() => {
+                                    if (!isGreenElsewhere) toggleCircle(tIndex, sub.key, c);
+                                  }}
+                                  style={isGreenElsewhere ? { pointerEvents: 'none', opacity: 0.5 } : {}}
+                                />
+                              );
+                            })}
                           </div>
                         </td>
                       ))}
@@ -446,7 +531,7 @@ const Round1Page = () => {
                                 .from("round1_details")
                                 .update({
                                   round2_score: updated[i] || 0,
-                                  choices: choicesToCounts(scores[i])
+                                  choices: choicesToColorFormat(scores[i]._circleColors)
                                 })
                                 .eq("team_id", team.id);
                               if (error) {
@@ -493,7 +578,7 @@ const Round1Page = () => {
               </div>
             )}
             {/* allow editing round1 even after it's been saved (before round2) */}
-            // ...existing code...
+            
 
           </div>
         )}
