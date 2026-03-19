@@ -44,7 +44,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Router>
           <Routes>
             {/* Public routes with top navbar */}
             <Route element={<PublicLayout />}>
