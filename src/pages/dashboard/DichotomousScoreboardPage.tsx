@@ -18,6 +18,7 @@ interface ScoreRow {
   score: number;
   total: number;
   created_at: string;
+  timer_remaining?: number;
 }
 
 
@@ -29,10 +30,10 @@ export default function DichotomousScoreboardPage() {
     setLoading(true);
     const db: any = supabase;
 
-    // Fetch all quiz scores (current schema has only school_name, score, total)
+    // Fetch all quiz scores and join timer_remaining from dichotomous_user_trees
     const { data: rawScores, error } = await db
       .from("quiz_scores")
-      .select("school_name, score, total, created_at")
+      .select("school_name, score, total, created_at, question_id")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -41,11 +42,25 @@ export default function DichotomousScoreboardPage() {
       return;
     }
 
-    const rows: ScoreRow[] = (rawScores ?? []).map((r: any) => ({
-      school_name: r.school_name,
-      score: r.score,
-      total: r.total,
-      created_at: r.created_at,
+    // For each score, fetch timer_remaining from dichotomous_user_trees
+    const rows: ScoreRow[] = await Promise.all((rawScores ?? []).map(async (r: any) => {
+      let timer_remaining: number | undefined = undefined;
+      if (r.question_id) {
+        const { data: userTree } = await db
+          .from("dichotomous_user_trees")
+          .select("timer_remaining")
+          .eq("school_name", r.school_name)
+          .eq("question_id", r.question_id)
+          .maybeSingle();
+        timer_remaining = userTree?.timer_remaining;
+      }
+      return {
+        school_name: r.school_name,
+        score: r.score,
+        total: r.total,
+        created_at: r.created_at,
+        timer_remaining,
+      };
     }));
 
     setScores(rows);
@@ -85,8 +100,17 @@ export default function DichotomousScoreboardPage() {
       score100: pct,
       totalScore: r.score,
       maxPossible: r.total,
+      timer_remaining: r.timer_remaining,
     };
   });
+
+  // Format seconds as mm:ss
+  function formatTime(s?: number) {
+    if (typeof s !== "number" || isNaN(s)) return "-";
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -115,6 +139,7 @@ export default function DichotomousScoreboardPage() {
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>School Name</TableHead>
                   <TableHead className="text-center">Score</TableHead>
+                  <TableHead className="text-center">Time Remaining</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -123,6 +148,7 @@ export default function DichotomousScoreboardPage() {
                     <TableCell className="font-medium">{idx + 1}</TableCell>
                     <TableCell className="font-semibold">{row.school_name}</TableCell>
                     <TableCell className="text-center font-bold text-primary text-lg">{row.score100}</TableCell>
+                    <TableCell className="text-center">{formatTime(row.timer_remaining)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

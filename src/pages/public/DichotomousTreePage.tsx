@@ -1,3 +1,29 @@
+import { computeDichotomousScore } from "@/lib/dichotomousScoring";
+// Utility: Build depth-wise answer JSON from NodeData tree
+function buildDepthWiseAnswerJsonFromNode(node: NodeData | null, depth = 1, result: any = {}) {
+  if (!node) return result;
+  const dkey = `depth ${depth}`;
+  if (!result[dkey]) result[dkey] = {};
+  if (node.isSplit) {
+    if (node.left && node.featL) {
+      result[dkey][node.featL] = node.left.animals || [];
+    }
+    if (node.right && node.featR) {
+      result[dkey][node.featR] = node.right.animals || [];
+    }
+    buildDepthWiseAnswerJsonFromNode(node.left, depth + 1, result);
+    buildDepthWiseAnswerJsonFromNode(node.right, depth + 1, result);
+  } else {
+    // Pending features (pre-split)
+    if (node.pendingFeatL) {
+      result[dkey][node.pendingFeatL] = node.pendingLeft || [];
+    }
+    if (node.pendingFeatR) {
+      result[dkey][node.pendingFeatR] = node.pendingRight || [];
+    }
+  }
+  return result;
+}
 /**
  * Extracts a detailed user tree format: { feature: [animals], ... }
  * Includes all split and pending features recursively.
@@ -98,48 +124,6 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.every((val, idx) => val === b[idx]);
 }
 
-/**
- * Validate user answer against DB answer nodes using user_tree_detailed format.
- * Full marks only if all features match exactly, otherwise partial marks by feature.
- */
-function validateTreeFromDB(treeData: NodeData | null, answerNodes: AnswerNode[]): number {
-  if (!treeData) return 0;
-  if (!answerNodes || answerNodes.length === 0) return 0;
-
-  // Build correct answer mapping: feature_name -> animals[]
-  const correctMap: Record<string, string[]> = {};
-  for (const n of answerNodes) {
-    if (n.feature_name) {
-      correctMap[n.feature_name] = n.animals;
-    }
-  }
-
-  // Get user answer in the same format
-  const userMap = extractDetailedUserTreeFormat(treeData);
-
-  // Collect all unique features from both user and correct answer
-  const allFeatures = Array.from(new Set([
-    ...Object.keys(userMap),
-    ...Object.keys(correctMap)
-  ]));
-
-  let correctFeatures = 0;
-  for (const feature of allFeatures) {
-    const userAnimals = (userMap[feature] || []).slice().sort();
-    const correctAnimals = (correctMap[feature] || []).slice().sort();
-    if (arraysEqual(userAnimals, correctAnimals)) {
-      correctFeatures++;
-    }
-  }
-
-  // Full marks if all features are correct
-  if (correctFeatures === allFeatures.length && allFeatures.length > 0) {
-    return 100;
-  }
-  // Otherwise, partial marks by feature
-  const score = Math.round((correctFeatures / allFeatures.length) * 100);
-  return score;
-}
 
 function serializeNode(container: Element): NodeData {
   const node = container.querySelector(":scope > .node") as HTMLElement;
@@ -612,13 +596,15 @@ export default function DichotomousTreePage() {
     saveTimerRef.current = setTimeout(async () => {
       const db: any = supabase;
       const timerVal = parseInt(sessionStorage.getItem(`dichotomous_timer_${schoolName}`) || '180', 10);
-      // Always update tree_data and user_tree_detailed with the latest state
+      // Always update tree_data, user_tree_detailed, and user_answer with the latest state
       const userTreeDetailed = extractDetailedUserTreeFormat(state);
+      const userAnswerJson = buildDepthWiseAnswerJsonFromNode(state);
       const { error } = await db.from("dichotomous_user_trees").upsert({
         school_name: schoolName,
         question_id: question.id,
         tree_data: state, // always update tree_data
         user_tree_detailed: userTreeDetailed, // always update user_tree_detailed
+        user_answer: userAnswerJson, // always update user_answer (depth-wise JSON)
         timer_remaining: timerVal,
         updated_at: new Date().toISOString(),
       }, { onConflict: "school_name,question_id" });
@@ -665,25 +651,45 @@ export default function DichotomousTreePage() {
     const root = treeRootRef.current;
     const firstChild = root?.firstElementChild ?? null;
     const treeData = firstChild ? serializeNode(firstChild) : null;
-    const sc = validateTreeFromDB(treeData, answerNodes);
-    setScore(sc);
-    await saveScore(sc, 10, treeData);
-
-    // After submit, upsert tree_data and user_tree_detailed in dichotomous_user_trees
-    try {
-      if (schoolName && question && treeData) {
-        const userTreeDetailed = extractDetailedUserTreeFormat(treeData);
-        const db: any = supabase;
-        await db.from("dichotomous_user_trees").upsert({
-          school_name: schoolName,
-          question_id: question.id,
-          tree_data: treeData,
-          user_tree_detailed: userTreeDetailed,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "school_name,question_id" });
+    let sc = 0;
+    let userAnswerJson = null;
+    // Fetch correct answer and user answer JSONs, compute score
+    if (question) {
+      const db: any = supabase;
+      // 1. Fetch correct answer JSON from dichotomous_questions
+      const { data: qRow } = await db
+        .from("dichotomous_questions")
+        .select("answer")
+        .eq("id", question.id)
+        .maybeSingle();
+      const correctAnswerJson = qRow?.answer || {};
+      // 2. Build user answer JSON from current tree
+      userAnswerJson = treeData ? buildDepthWiseAnswerJsonFromNode(treeData) : {};
+      // 3. Compute score
+      sc = computeDichotomousScore(correctAnswerJson, userAnswerJson);
+      setScore(sc);
+      await saveScore(sc, 10, treeData);
+      // 4. Upsert user answer and score
+      try {
+        if (schoolName && question && treeData) {
+          const userTreeDetailed = extractDetailedUserTreeFormat(treeData);
+          await db.from("dichotomous_user_trees").upsert({
+            school_name: schoolName,
+            question_id: question.id,
+            tree_data: treeData,
+            user_tree_detailed: userTreeDetailed,
+            user_answer: userAnswerJson,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "school_name,question_id" });
+          // Update quiz_scores with new score
+          await db.from("quiz_scores")
+            .update({ score: sc })
+            .eq("school_name", schoolName)
+            .eq("question_id", question.id);
+        }
+      } catch (err) {
+        console.error("Failed to upsert tree_data, user_tree_detailed, user_answer after submit", err);
       }
-    } catch (err) {
-      console.error("Failed to upsert tree_data, user_tree_detailed after submit", err);
     }
 
     sessionStorage.removeItem(`dichotomous_${schoolName}`);
@@ -889,28 +895,22 @@ export default function DichotomousTreePage() {
       {step === "enter" && !urlSchoolName && (
         <Card className="w-full max-w-md mx-auto animate-scale-in glass-card">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-display">🌳 Dichotomous Tree Builder</CardTitle>
+            <CardTitle className="text-2xl font-display">🌳 Path Finder</CardTitle>
             <p className="text-muted-foreground text-sm mt-1">Select your school to begin</p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <select
-              value={schoolNameInput}
-              onChange={e => setSchoolNameInput(e.target.value)}
-              className="text-center text-lg w-full border rounded p-2 bg-transparent focus:bg-transparent focus:ring-2 focus:ring-primary/40 custom-select-white-options"
-            /* Add this style at the end of the file for white dropdown options */
-            // ...existing code...
-
-            // Add to the bottom of the file (or in your CSS):
-            // .custom-select-white-options option {
-            //   background: #fff;
-            //   color: #222;
-            // }
-            >
-              <option value="" disabled>Select School</option>
-              {schoolOptions.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
+            <div className="glass-select-wrap">
+              <select
+                value={schoolNameInput}
+                onChange={e => setSchoolNameInput(e.target.value)}
+                className="glass-select text-center text-lg w-full border-none rounded-xl p-3 bg-glass focus:bg-glass focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="" disabled>Select School</option>
+                {schoolOptions.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
             <Button onClick={handleContinue} className="w-full" size="lg" disabled={!schoolNameInput}>
               Continue
             </Button>
@@ -943,8 +943,7 @@ export default function DichotomousTreePage() {
             </div>
             <div>
               <h3 className="font-semibold">📊 மதிப்பெண்:</h3>
-              <p className="text-muted-foreground"><strong>10 மதிப்பெண்:</strong> அனைத்தும் சரியாக இருந்தால்</p>
-              <p className="text-muted-foreground"><strong>0 மதிப்பெண்:</strong> அனைத்தும் தவறாக இருந்தால்</p>
+              <p className="text-muted-foreground">அனைத்தும் சரியாக இருந்தால் 100 புள்ளிகள் வழங்கப்படும்.</p>
             </div>
             <Button className="w-full" size="lg" onClick={() => {
               navigate(`/dichotomous/${encodeURIComponent(schoolName)}/${urlQuestionId}/game`, { replace: true });
@@ -967,7 +966,7 @@ export default function DichotomousTreePage() {
           <>
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-display text-xl font-semibold">
-              {schoolName} — {question.title}
+              {schoolName}
             </h2>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={toggleFullscreen}>
@@ -992,10 +991,10 @@ export default function DichotomousTreePage() {
               <div className="dt-tree-root" ref={treeRootRef} id="tree-root"></div>
             </div>
 
-            <div className="dt-feature-sidebar lg:w-[20%] space-y-6">
-              <h3 className="font-semibold mb-2">பண்புகளின் வங்கி</h3>
+            <div className="dt-feature-sidebar lg:w-[25%] space-y-6">
+              <h3 className="font-semibold mb-2">பண்புகள்</h3>
               <p className="text-xs text-muted-foreground mb-2">
-                இவற்றை பண்பு செல்களுக்குள் இழுக்கவும்
+                Drag & Drop
               </p>
               <div ref={featureBankRef} id="feature-bank"></div>
             </div>

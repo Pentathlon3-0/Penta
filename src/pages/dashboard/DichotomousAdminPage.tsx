@@ -1,3 +1,23 @@
+// Utility: Build depth-wise answer JSON from SplitNode tree
+function buildDepthWiseAnswerJson(splits) {
+  const result = {};
+  function walk(node, depth) {
+    if (!node) return;
+    const dkey = `depth ${depth}`;
+    if (!result[dkey]) result[dkey] = {};
+    if (node.left && node.left.featureName) {
+      result[dkey][node.left.featureName] = node.left.animals.split(',').map(a => a.trim()).filter(Boolean);
+    }
+    if (node.right && node.right.featureName) {
+      result[dkey][node.right.featureName] = node.right.animals.split(',').map(a => a.trim()).filter(Boolean);
+    }
+    for (const child of node.children || []) {
+      walk(child, depth + 1);
+    }
+  }
+  for (const s of splits) walk(s, 1);
+  return result;
+}
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -441,6 +461,10 @@ export default function DichotomousAdminPage() {
     const animalsArr = editAnimals.split(",").map((s) => s.trim()).filter(Boolean);
     const featuresArr = editFeatures.split(",").map((s) => s.trim()).filter(Boolean);
 
+
+    // Build depth-wise answer JSON
+    const answerJson = buildDepthWiseAnswerJson(editTree);
+
     const { error: qErr } = await db
       .from("dichotomous_questions")
       .update({
@@ -449,6 +473,7 @@ export default function DichotomousAdminPage() {
         animals: animalsArr,
         features: featuresArr,
         timer_seconds: editTimer,
+        answer: answerJson,
       })
       .eq("id", editingId);
 
@@ -487,12 +512,17 @@ export default function DichotomousAdminPage() {
     const animalsArr = newAnimals.split(",").map((s) => s.trim()).filter(Boolean);
     const featuresArr = newFeatures.split(",").map((s) => s.trim()).filter(Boolean);
 
+
+    // Build depth-wise answer JSON for new question
+    const answerJson = buildDepthWiseAnswerJson([]); // No tree yet
+
     const { error } = await db.from("dichotomous_questions").insert({
       title: newTitle,
       description: newDescription || null,
       animals: animalsArr,
       features: featuresArr,
       timer_seconds: newTimer,
+      answer: answerJson,
     });
 
     if (error) {

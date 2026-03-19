@@ -26,15 +26,15 @@ export default function PublicLayout() {
           </Link>
           <nav className="flex items-center gap-2">
             {/* Bazar button removed */}
+            <Button variant={isActive("/dichotomous") ? "default" : "ghost"} size="sm" asChild>
+              <Link to="/dichotomous"><TreePine className="mr-1.5 h-4 w-4" /> Path Finder</Link>
+            </Button>
             <Button variant={isActive("/coding") ? "default" : "ghost"} size="sm" asChild>
               <Link to="/coding"><Code className="mr-1.5 h-4 w-4" /> Code Wizard</Link>
             </Button>
-            <Button variant={isActive("/dichotomous") ? "default" : "ghost"} size="sm" asChild>
-              <Link to="/dichotomous"><TreePine className="mr-1.5 h-4 w-4" /> Dichotomous</Link>
-            </Button>
             <Button variant={isActive("/password") ? "default" : "ghost"} size="sm" asChild>
               <Link to="/password" className="inline-flex items-center gap-1.5">
-                <span className="leading-none">💡</span>
+                <span className="leading-none">🔒︎</span>
                 <span>Clever Minds</span>
               </Link>
             </Button>

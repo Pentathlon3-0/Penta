@@ -1,3 +1,99 @@
+/* Glassmorphism dropdown styles (for select-like dropdowns) */
+.glass-dropdown {
+  position: relative;
+  display: inline-block;
+}
+.glass-dropbtn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 12px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+  font-size: 16px;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.glass-dropdown-content {
+  display: none;
+  position: absolute;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  min-width: 160px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  z-index: 1;
+  padding: 8px 0;
+}
+.glass-dropdown-content a {
+  color: white;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+  transition: 0.3s;
+}
+.glass-dropdown-content a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin: 0 5px;
+}
+.glass-dropdown:hover .glass-dropdown-content {
+  display: block;
+}
+/* Glass/liquid style for select dropdown */
+/* Enhanced glass effect for select dropdown */
+.glass-select-wrap {
+  background: linear-gradient(135deg, rgba(30,41,59,0.45) 0%, rgba(59,130,246,0.18) 100%);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.22);
+  padding: 4px;
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1.5px solid rgba(96, 165, 250, 0.18);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.glass-select {
+  background: linear-gradient(135deg, rgba(255,255,255,0.13) 0%, rgba(59,130,246,0.09) 100%);
+  border-radius: 14px;
+  box-shadow: 0 2px 16px 0 rgba(59,130,246,0.13);
+  color: #e0e7ef;
+  border: none;
+  outline: none;
+  padding: 14px 20px;
+  font-size: 1.1rem;
+  transition: background 0.2s, box-shadow 0.2s;
+  backdrop-filter: blur(14px) saturate(200%);
+  -webkit-backdrop-filter: blur(14px) saturate(200%);
+  appearance: none;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.glass-select:focus {
+  background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(59,130,246,0.13) 100%);
+  box-shadow: 0 0 0 2px #144a8b, 0 2px 16px 0 rgba(59,130,246,0.13);
+}
+.glass-select option {
+  background: linear-gradient(135deg, rgba(43,18,132,0.98) 0%, rgba(59,130,246,0.22) 100%);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 1rem;
+  box-shadow: 0 2px 12px 0 rgba(59,130,246,0.13);
+  padding: 8px 16px;
+  margin: 4px 0;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+/* Option hover effect (not all browsers support) */
+.glass-select option:hover, .glass-select option:focus {
+  background: linear-gradient(135deg, rgba(4, 34, 84, 0.22) 0%, rgba(79, 47, 196, 0.98) 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px 0 rgba(59,130,246,0.18);
+}
+
 /* Remove button for animal in drop zone */
 .animal-remove-btn {
   display: none;

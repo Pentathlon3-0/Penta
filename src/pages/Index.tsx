@@ -13,14 +13,14 @@ export default function Index() {
           The school competition platform. Access Clever Minds, take coding challenges, take dichotomous tree challenges, and compete!
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Button size="lg" asChild>
-            <Link to="/password"><Lock className="mr-2 h-5 w-5" /> Clever Minds</Link>
+          <Button size="lg" variant="secondary" asChild>
+            <Link to="/dichotomous"><TreePine className="mr-2 h-5 w-5" /> Path Finder</Link>
           </Button>
           <Button size="lg" variant="secondary" asChild>
             <Link to="/coding"><Code className="mr-2 h-5 w-5" /> Code Wizard</Link>
           </Button>
-          <Button size="lg" variant="secondary" asChild>
-            <Link to="/dichotomous"><TreePine className="mr-2 h-5 w-5" /> Dichotomous Tree</Link>
+          <Button size="lg" asChild>
+            <Link to="/password"><Lock className="mr-2 h-5 w-5" /> Clever Minds</Link>
           </Button>
         </div>
       </div>
