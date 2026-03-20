@@ -40,6 +40,8 @@ interface QuizItem {
 const FALLBACK_SCHOOL_PASSWORD = "ABCDE";
 
 export default function PasswordPage() {
+  // Accordion state: 0 = Photographic Memory, 1 = Listening, 2 = Password Solver, null = none
+  const [activePanel, setActivePanel] = useState<0 | 1 | 2 | null>(0);
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdmin } = useAuth();
@@ -68,6 +70,13 @@ export default function PasswordPage() {
   const [answers1, setAnswers1] = useState<string[]>([]);
   const [answers2, setAnswers2] = useState<string[]>([]);
   const [quiz1MultiSelected, setQuiz1MultiSelected] = useState<boolean[]>([]);
+
+  const [quiz1TimeLeft, setQuiz1TimeLeft] = useState(300);
+  const [quiz2TimeLeft, setQuiz2TimeLeft] = useState(300);
+  const quiz1TimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const quiz2TimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const quiz1StateRef = useRef({ quiz1: [] as QuizItem[], answers1: [] as string[] });
+  const quiz2StateRef = useRef({ quiz2: [] as QuizItem[], answers2: [] as string[] });
 
   // reinitialise answer arrays whenever the questions change
   useEffect(() => {
@@ -99,6 +108,134 @@ export default function PasswordPage() {
   const [showQuestionPanel2, setShowQuestionPanel2] = useState(false);
   const [quiz1Submitted, setQuiz1Submitted] = useState(false);
   const [quiz2Submitted, setQuiz2Submitted] = useState(false);
+
+  // Quiz timers: 5 minutes each, autosubmit when reaches 0
+  useEffect(() => {
+    const timerKey1 = getQuizTimerKey(1);
+    if (!quiz1Started || quiz1Submitted || isCompetitionLocked) {
+      if (quiz1TimerRef.current) {
+        clearInterval(quiz1TimerRef.current);
+        quiz1TimerRef.current = null;
+      }
+      clearQuizTimerKey(1);
+      return;
+    }
+
+    let startTime = 300;
+    try {
+      const saved = Number(localStorage.getItem(timerKey1));
+      if (!Number.isNaN(saved) && saved > 0) {
+        startTime = saved;
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+
+    setQuiz1TimeLeft(startTime);
+
+    if (quiz1TimerRef.current) {
+      clearInterval(quiz1TimerRef.current);
+      quiz1TimerRef.current = null;
+    }
+
+    const normalizedSchoolName = schoolName.trim();
+
+    quiz1TimerRef.current = setInterval(() => {
+      setQuiz1TimeLeft((current) => {
+        const next = current <= 1 ? 0 : current - 1;
+        try {
+          localStorage.setItem(timerKey1, String(next));
+        } catch {
+          // ignore
+        }
+
+        if (normalizedSchoolName) {
+          upsertQuizProgress({
+            school_name: normalizedSchoolName,
+            quiz1_time_left: next,
+          }).catch((err) => {
+            // avoid breaking the timer on transient DB error
+            console.warn("Failed to update quiz1_time_left:", err);
+          });
+        }
+
+        if (next === 0) {
+          autoSubmitQuiz1();
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      if (quiz1TimerRef.current) {
+        clearInterval(quiz1TimerRef.current);
+        quiz1TimerRef.current = null;
+      }
+    };
+  }, [quiz1Started, quiz1Submitted, isCompetitionLocked, schoolName]);
+
+  useEffect(() => {
+    const timerKey2 = getQuizTimerKey(2);
+    if (!quiz2Started || quiz2Submitted || isCompetitionLocked) {
+      if (quiz2TimerRef.current) {
+        clearInterval(quiz2TimerRef.current);
+        quiz2TimerRef.current = null;
+      }
+      clearQuizTimerKey(2);
+      return;
+    }
+
+    let startTime = 300;
+    try {
+      const saved = Number(localStorage.getItem(timerKey2));
+      if (!Number.isNaN(saved) && saved > 0) {
+        startTime = saved;
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+
+    setQuiz2TimeLeft(startTime);
+
+    if (quiz2TimerRef.current) {
+      clearInterval(quiz2TimerRef.current);
+      quiz2TimerRef.current = null;
+    }
+
+    const normalizedSchoolName = schoolName.trim();
+
+    quiz2TimerRef.current = setInterval(() => {
+      setQuiz2TimeLeft((current) => {
+        const next = current <= 1 ? 0 : current - 1;
+        try {
+          localStorage.setItem(timerKey2, String(next));
+        } catch {
+          // ignore
+        }
+
+        if (normalizedSchoolName) {
+          upsertQuizProgress({
+            school_name: normalizedSchoolName,
+            quiz2_time_left: next,
+          }).catch((err) => {
+            console.warn("Failed to update quiz2_time_left:", err);
+          });
+        }
+
+        if (next === 0) {
+          autoSubmitQuiz2();
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      if (quiz2TimerRef.current) {
+        clearInterval(quiz2TimerRef.current);
+        quiz2TimerRef.current = null;
+      }
+    };
+  }, [quiz2Started, quiz2Submitted, isCompetitionLocked, schoolName]);
   const [showDocumentLock, setShowDocumentLock] = useState(false);
   const [documentPasswordInput, setDocumentPasswordInput] = useState("");
   const [documentUnlocked, setDocumentUnlocked] = useState(false);
@@ -112,7 +249,7 @@ export default function PasswordPage() {
 
   const normalizePasswordWord = (value?: string) => {
     const clean = (value || "").trim().replace(/[^a-zA-Z]/g, "");
-    return clean.length === 5 ? clean : FALLBACK_SCHOOL_PASSWORD;
+    return clean.length === 7 ? clean : FALLBACK_SCHOOL_PASSWORD;
   };
 
   const shuffleLetters = (letters: string[]) => {
@@ -125,7 +262,26 @@ export default function PasswordPage() {
   };
 
   const normalizePasswordInput = (value: string) => {
-    return value.replace(/[^a-zA-Z]/g, "").slice(0, 5);
+    return value.replace(/[^a-zA-Z]/g, "").slice(0, 7);
+  };
+
+  const getQuizTimerKey = (quizId: 1 | 2) => {
+    const normalizedSchool = (schoolName || "").trim().replace(/\s+/g, "_") || "global";
+    return `password_quiz${quizId}_timer_${normalizedSchool}`;
+  };
+
+  const clearQuizTimerKey = (quizId: 1 | 2) => {
+    try {
+      localStorage.removeItem(getQuizTimerKey(quizId));
+    } catch (err) {
+      // ignore private mode / missing localStorage
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
   const setDocumentPasswordChar = (idx: number, value: string) => {
@@ -166,26 +322,43 @@ export default function PasswordPage() {
     const stepParam = (searchParams.get("step") as "enterSchool" | "quiz1" | "quiz2") || "enterSchool";
     const schoolParam = searchParams.get("school") || "";
     const qParam = parseInt(searchParams.get("q") || "0", 10);
+    const panelParam = parseInt(searchParams.get("panel") || "", 10);
     const startedParam = searchParams.get("started") === "1";
 
-    if (schoolParam) {
+    if (schoolParam && schoolParam !== schoolName) {
       setSchoolName(schoolParam);
     }
 
-    setStep(stepParam);
+    if (stepParam !== step) {
+      setStep(stepParam);
+    }
+
     setShowLinks(stepParam !== "enterSchool");
 
+    if (!Number.isNaN(panelParam) && panelParam >= 0 && panelParam <= 2 && panelParam !== activePanel) {
+      setActivePanel(panelParam as 0 | 1 | 2);
+    }
+
     // Keep the correct quiz state when reloading (so users land back on the question view)
-    setQuiz1Started(stepParam === "quiz1" && startedParam);
-    setQuiz2Started(stepParam === "quiz2" && startedParam);
+    const shouldStartQuiz1 = stepParam === "quiz1" && startedParam;
+    if (shouldStartQuiz1 !== quiz1Started) {
+      setQuiz1Started(shouldStartQuiz1);
+    }
+
+    const shouldStartQuiz2 = stepParam === "quiz2" && startedParam;
+    if (shouldStartQuiz2 !== quiz2Started) {
+      setQuiz2Started(shouldStartQuiz2);
+    }
 
     if (stepParam === "quiz1") {
-      setCurrentQ1(isNaN(qParam) ? 0 : Math.max(0, Math.min(qParam, quiz1.length - 1)));
+      const nextQ = isNaN(qParam) ? 0 : Math.max(0, Math.min(qParam, quiz1.length - 1));
+      if (nextQ !== currentQ1) setCurrentQ1(nextQ);
     }
     if (stepParam === "quiz2") {
-      setCurrentQ2(isNaN(qParam) ? 0 : Math.max(0, Math.min(qParam, quiz2.length - 1)));
+      const nextQ = isNaN(qParam) ? 0 : Math.max(0, Math.min(qParam, quiz2.length - 1));
+      if (nextQ !== currentQ2) setCurrentQ2(nextQ);
     }
-  }, [location.search, quiz1.length, quiz2.length]);
+  }, [location.search, quiz1.length, quiz2.length, schoolName, step, activePanel, quiz1Started, quiz2Started, currentQ1, currentQ2, setSearchParams]);
 
   // when step changes we may need to scroll into view
   useEffect(() => {
@@ -203,26 +376,38 @@ export default function PasswordPage() {
 
   // keep the URL in sync with the current question so refresh preserves it
   useEffect(() => {
-    if (step === "quiz1") {
-      setSearchParams({
-        step: "quiz1",
-        school: schoolName,
-        q: String(currentQ1),
-        started: quiz1Started ? "1" : "0",
-      });
+    if (step !== "quiz1") return;
+
+    const target = new URLSearchParams({
+      step: "quiz1",
+      school: schoolName,
+      q: String(currentQ1),
+      started: quiz1Started ? "1" : "0",
+      panel: String(activePanel ?? 0),
+    });
+
+    const current = new URLSearchParams(location.search);
+    if (target.toString() !== current.toString()) {
+      setSearchParams(target);
     }
-  }, [step, schoolName, currentQ1, quiz1Started, setSearchParams]);
+  }, [step, schoolName, currentQ1, quiz1Started, activePanel, location.search, setSearchParams]);
 
   useEffect(() => {
-    if (step === "quiz2") {
-      setSearchParams({
-        step: "quiz2",
-        school: schoolName,
-        q: String(currentQ2),
-        started: quiz2Started ? "1" : "0",
-      });
+    if (step !== "quiz2") return;
+
+    const target = new URLSearchParams({
+      step: "quiz2",
+      school: schoolName,
+      q: String(currentQ2),
+      started: quiz2Started ? "1" : "0",
+      panel: String(activePanel ?? 1),
+    });
+
+    const current = new URLSearchParams(location.search);
+    if (target.toString() !== current.toString()) {
+      setSearchParams(target);
     }
-  }, [step, schoolName, currentQ2, quiz2Started, setSearchParams]);
+  }, [step, schoolName, currentQ2, quiz2Started, activePanel, location.search, setSearchParams]);
 
   useEffect(() => {
     const load = async () => {
@@ -289,7 +474,7 @@ export default function PasswordPage() {
     const restoreProgress = async () => {
       const { data, error } = await (supabase as any)
         .from("school_quiz_progress")
-        .select("quiz1_answers, quiz2_answers, quiz1_submitted, quiz2_submitted, letters_given")
+        .select("quiz1_answers, quiz2_answers, quiz1_submitted, quiz2_submitted, letters_given, quiz1_time_left, quiz2_time_left")
         .eq("school_name", normalizedSchoolName)
         .maybeSingle();
 
@@ -301,6 +486,13 @@ export default function PasswordPage() {
 
       setQuiz1Submitted(Boolean(data.quiz1_submitted));
       setQuiz2Submitted(Boolean(data.quiz2_submitted));
+      if (typeof data.quiz1_time_left === "number" && data.quiz1_time_left >= 0) {
+        setQuiz1TimeLeft(data.quiz1_time_left);
+      }
+      if (typeof data.quiz2_time_left === "number" && data.quiz2_time_left >= 0) {
+        setQuiz2TimeLeft(data.quiz2_time_left);
+      }
+
 
       const lettersGiven = (data.letters_given || {}) as { quiz1?: string[]; quiz2?: string[] };
       const restoredQuiz1Letters = Array.isArray(lettersGiven.quiz1) ? lettersGiven.quiz1 : [];
@@ -367,6 +559,8 @@ export default function PasswordPage() {
     quiz2_submitted?: boolean;
     letters_given?: { quiz1?: string[]; quiz2?: string[] };
     document_marks?: number | null;
+    quiz1_time_left?: number | null;
+    quiz2_time_left?: number | null;
   }) => {
     try {
       const row: Record<string, any> = {
@@ -381,6 +575,8 @@ export default function PasswordPage() {
       if (payload.quiz2_submitted !== undefined) row.quiz2_submitted = payload.quiz2_submitted;
       if (payload.letters_given !== undefined) row.letters_given = payload.letters_given;
       if (payload.document_marks !== undefined) row.document_marks = payload.document_marks;
+      if (payload.quiz1_time_left !== undefined) row.quiz1_time_left = payload.quiz1_time_left;
+      if (payload.quiz2_time_left !== undefined) row.quiz2_time_left = payload.quiz2_time_left;
 
       const { data, error } = await (supabase as any)
         .from("school_quiz_progress")
@@ -398,6 +594,16 @@ export default function PasswordPage() {
       console.error("Failed to save quiz progress - Exception:", err);
       return false;
     }
+  };
+
+  const persistQuiz1Answers = async (quiz1_answers: Record<string, string | boolean>) => {
+    const normalizedSchoolName = schoolName.trim();
+    if (!normalizedSchoolName) return;
+
+    await upsertQuizProgress({
+      school_name: normalizedSchoolName,
+      quiz1_answers,
+    });
   };
 
   // Award document marks: 50 if document unlocked and marked correctly, else 0
@@ -436,6 +642,145 @@ export default function PasswordPage() {
     setTimeout(() => quiz1Ref.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
+  const autoSubmitQuiz1 = async () => {
+    if (quiz1Submitted || !quiz1?.length) return;
+
+    if (quiz1TimerRef.current) {
+      clearInterval(quiz1TimerRef.current);
+      quiz1TimerRef.current = null;
+    }
+
+    const quiz1LettersPool = schoolPasswordWord.slice(0, 3).split("");
+    const first = quiz1[0] as any;
+    const isMultiFormat = first && Array.isArray(first.answers);
+
+    let awardedLetters: string[] = [];
+    let correct = 0;
+
+    const normalizedSchoolName = schoolName.trim();
+    if (!normalizedSchoolName) return;
+
+    const doUpsert = async (answersPayload: Record<string, string | boolean>) => {
+      try {
+        await upsertQuizProgress({
+          school_name: normalizedSchoolName,
+          quiz1_answers: answersPayload,
+          quiz1_score: Math.round((30 / Math.max(1, quiz1.length)) * correct),
+          quiz1_submitted: true,
+          quiz1_time_left: 0,
+          letters_given: {
+            quiz1: awardedLetters,
+            quiz2: part2 ? part2.split(" ").filter(Boolean) : [],
+          },
+        });
+      } catch (error) {
+        console.error("autoSubmitQuiz1 upsert failed", error);
+      }
+    };
+
+    if (isMultiFormat) {
+      const correctArray: boolean[] = Array.isArray(first.correct) ? first.correct : [];
+      correctArray.forEach((isCorrect, idx) => {
+        if (isCorrect && quiz1MultiSelected[idx]) correct++;
+      });
+      const awardedCount = Math.max(0, Math.min(correct, quiz1LettersPool.length));
+      awardedLetters = shuffleLetters(quiz1LettersPool).slice(0, awardedCount);
+      setPart1(awardedLetters.join(" "));
+
+      const answerPayload = quiz1MultiSelected.reduce((acc, selected, idx) => {
+        if (selected) acc[String(idx)] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+
+      await doUpsert(answerPayload);
+    } else {
+      quiz1.forEach((q, idx) => {
+        let expected = (q.answer || "").toString().trim().toLowerCase();
+        if (expected === "1" || expected === "option_a" || expected === q.option_a?.toLowerCase()) expected = "a";
+        if (expected === "2" || expected === "option_b" || expected === q.option_b?.toLowerCase()) expected = "b";
+        if (expected === "3" || expected === "option_c" || expected === q.option_c?.toLowerCase()) expected = "c";
+        if (expected === "4" || expected === "option_d" || expected === q.option_d?.toLowerCase()) expected = "d";
+
+        if ((answers1[idx] || "").trim().toLowerCase() === expected) {
+          correct++;
+        }
+      });
+
+      const awardedCount = Math.max(0, Math.min(correct, quiz1LettersPool.length));
+      awardedLetters = shuffleLetters(quiz1LettersPool).slice(0, awardedCount);
+      setPart1(awardedLetters.join(" "));
+
+      const quiz1Answers: Record<string, string> = {};
+      answers1.forEach((val, idx) => {
+        if (val) quiz1Answers[String(idx)] = val;
+      });
+
+      await doUpsert(quiz1Answers);
+    }
+
+    setQuiz1Submitted(true);
+    setQuiz1Started(false);
+    clearQuizTimerKey(1);
+    setCurrentQ1(0);
+    setStep("quiz2");
+    setActivePanel(1);
+    setQuiz1TimeLeft(0);
+    setSearchParams({ step: "quiz2", school: schoolName, q: "0" });
+  };
+
+  const autoSubmitQuiz2 = () => {
+    if (quiz2Submitted || !quiz2?.length) return;
+
+    if (quiz2TimerRef.current) {
+      clearInterval(quiz2TimerRef.current);
+      quiz2TimerRef.current = null;
+    }
+
+    const quiz2LettersPool = schoolPasswordWord.slice(3, 5).split("");
+
+    let correct = 0;
+    quiz2.forEach((q, idx) => {
+      let expected = (q.answer || "").toString().trim().toLowerCase();
+      if (expected === "1" || expected === "option_a" || expected === q.option_a?.toLowerCase()) expected = "a";
+      if (expected === "2" || expected === "option_b" || expected === q.option_b?.toLowerCase()) expected = "b";
+      if (expected === "3" || expected === "option_c" || expected === q.option_c?.toLowerCase()) expected = "c";
+      if (expected === "4" || expected === "option_d" || expected === q.option_d?.toLowerCase()) expected = "d";
+
+      if ((answers2[idx] || "").trim().toLowerCase() === expected) {
+        correct++;
+      }
+    });
+
+    const awardedCount = Math.max(0, Math.min(correct, quiz2LettersPool.length));
+    const awardedLetters = shuffleLetters(quiz2LettersPool).slice(0, awardedCount);
+    setPart2(awardedLetters.join(" "));
+
+    const quiz2Answers: Record<string, string> = {};
+    answers2.forEach((val, idx) => {
+      if (val) quiz2Answers[String(idx)] = val;
+    });
+
+    upsertQuizProgress({
+      school_name: schoolName,
+      quiz2_answers: quiz2Answers,
+      quiz2_score: Math.round((40 / Math.max(1, quiz2.length)) * correct),
+      quiz2_submitted: true,
+      quiz2_time_left: 0,
+      letters_given: {
+        quiz1: part1 ? part1.split(" ").filter(Boolean) : [],
+        quiz2: awardedLetters,
+      },
+    });
+
+    setQuiz2Submitted(true);
+    setQuiz2Started(false);
+    setQuiz1Started(false);
+    clearQuizTimerKey(2);
+    setCurrentQ2(0);
+    setActivePanel(2);
+    setQuiz2TimeLeft(0);
+  };
+
   const handleSubmitQuiz1 = () => {
     if (quiz1Submitted) return;
     if (!quiz1?.length) return;
@@ -468,14 +813,16 @@ export default function PasswordPage() {
       upsertQuizProgress({
         school_name: schoolName,
         quiz1_answers: q1Answers as any,
-        quiz1_score: correct * 10,
+        quiz1_score: Math.round((30 / Math.max(1, quiz1.length)) * correct),
         quiz1_submitted: true,
+        quiz1_time_left: 0,
         letters_given: {
           quiz1: awardedLetters,
           quiz2: part2 ? part2.split(" ").filter(Boolean) : [],
         },
       });
       setQuiz1Submitted(true);
+      clearQuizTimerKey(1);
 
       setQuiz1Started(false);
       setCurrentQ1(0);
@@ -523,7 +870,7 @@ export default function PasswordPage() {
     upsertQuizProgress({
       school_name: schoolName,
       quiz1_answers: quiz1Answers,
-      quiz1_score: correct * 10,
+      quiz1_score: Math.round((30 / Math.max(1, quiz1.length)) * correct),
       quiz1_submitted: true,
       letters_given: {
         quiz1: awardedLetters,
@@ -531,11 +878,14 @@ export default function PasswordPage() {
       },
     });
     setQuiz1Submitted(true);
+    clearQuizTimerKey(1);
 
     // advance to quiz2 and reset state
     setQuiz1Started(false);
+    setQuiz2Started(false);
     setCurrentQ1(0);
     setStep("quiz2");
+    setActivePanel(1); // make Listening panel active after Quiz1 submit
     setSearchParams({ step: "quiz2", school: schoolName });
     setTimeout(() => quiz2Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
@@ -549,7 +899,15 @@ export default function PasswordPage() {
     if (!quiz2?.length) return;
 
     const currentAnswer = (answers2[currentQ2] || "").trim().toLowerCase();
-    if (!currentAnswer) return;
+
+    // allow moving forward without selection; record explicit null for unanswered slots
+    if (!currentAnswer) {
+      const copy = [...answers2];
+      if (copy[currentQ2] === undefined || copy[currentQ2] === "") {
+        copy[currentQ2] = "";
+      }
+      setAnswers2(copy);
+    }
 
     // move to next question if available
     if (currentQ2 < quiz2.length - 1) {
@@ -577,26 +935,34 @@ export default function PasswordPage() {
     const awardedLetters = shuffleLetters(quiz2LettersPool).slice(0, awardedCount);
     setPart2(awardedLetters.join(" "));
 
-    // Persist progress for Quiz 2: store answers + score
-    const quiz2Answers: Record<string, string> = {};
+    // Persist progress for Quiz 2: store answers + score, with explicit null for no-answer
+    const quiz2Answers: Record<string, string | null> = {};
     answers2.forEach((val, idx) => {
-      if (val) quiz2Answers[String(idx)] = val;
+      if (val && (val as string).trim() !== "") {
+        quiz2Answers[String(idx)] = val;
+      } else {
+        quiz2Answers[String(idx)] = null;
+      }
     });
     upsertQuizProgress({
       school_name: schoolName,
       quiz2_answers: quiz2Answers,
-      quiz2_score: correct * 10,
+      quiz2_score: Math.round((40 / Math.max(1, quiz2.length)) * correct),
       quiz2_submitted: true,
+      quiz2_time_left: 0,
       letters_given: {
         quiz1: part1 ? part1.split(" ").filter(Boolean) : [],
         quiz2: awardedLetters,
       },
     });
     setQuiz2Submitted(true);
+    clearQuizTimerKey(2);
 
     // reset started state so other cards come back into view
     setQuiz2Started(false);
+    setQuiz1Started(false);
     setCurrentQ2(0);
+    setActivePanel(2); // show Password Solver panel after Quiz2 submit
 
     // no done card; remain on quiz2
   };
@@ -652,6 +1018,9 @@ export default function PasswordPage() {
               <CardTitle className="text-2xl text-center md:text-left pb-4 md:pb-0 border-b border-muted/20 md:border-b-0">
                 Photographic Memory
               </CardTitle>
+              {quiz1Started && !quiz1Submitted && (
+                <div className="text-right text-sm font-semibold text-cyan-300">Time Left: {formatTime(quiz1TimeLeft)}</div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
@@ -661,24 +1030,35 @@ export default function PasswordPage() {
                   <li className="flex gap-2">
                     <span className="font-bold">•</span>
                     <span>
-                      You need to find the missing items that are in the first image but not in the second image.
+                      முதல் படத்தில் இருந்தது இரண்டாவது படத்தில் இல்லாத விடுபட்ட பொருட்களை நீங்கள் கண்டுபிடிக்க வேண்டும்.
                     </span>
                   </li>
                   <li className="flex gap-2">
                     <span className="font-bold">•</span>
                     <span>
-                      If you identify the missing items correctly according to the correct answer, you will get the letters that are in the password.
+                      விடுபட்ட பொருட்களை நீங்கள் சரியாகக் கண்டறிந்தால், கடவுச்சொல்லில் உள்ள எழுத்துக்களைப் பெறுவீர்கள்.
                     </span>
                   </li>
                 </ul>
                 <Button 
-                  onClick={() => {
+                  onClick={async () => {
                     if (isCompetitionLocked) return;
                     if (quiz1Submitted) return;
+                    const startTime = 300;
                     setQuiz1Started(true);
+                    setQuiz2Started(false);
+                    setQuiz1TimeLeft(startTime);
                     setCurrentQ1(0);
                     setShowQuestionPanel1(false);
                     setSearchParams({ step: "quiz1", school: schoolName, q: "0", started: "1" });
+
+                    const normalizedSchoolName = schoolName.trim();
+                    if (normalizedSchoolName) {
+                      await upsertQuizProgress({
+                        school_name: normalizedSchoolName,
+                        quiz1_time_left: startTime,
+                      });
+                    }
                   }}
                   disabled={quiz1Submitted || isCompetitionLocked}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-2 rounded-md font-semibold"
@@ -702,7 +1082,7 @@ export default function PasswordPage() {
               <div className="space-y-4 select-none" onCopy={(e) => e.preventDefault()}>
                 <div className="space-y-2">
                   <p className="text-sm text-white/70">
-                    Select all the items that are missing in the second image. Each correct selection earns letters for the password.
+                    இரண்டாவது படத்தில் விடுபட்டிருக்கும் அனைத்துப் பொருட்களையும் தேர்ந்தெடுக்கவும்.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {questionAnswers.map((ans, idx) => {
@@ -723,6 +1103,12 @@ export default function PasswordPage() {
                             const next = [...quiz1MultiSelected];
                             next[idx] = !next[idx];
                             setQuiz1MultiSelected(next);
+
+                            const payload: Record<string, boolean> = {};
+                            next.forEach((v, i) => {
+                              if (v) payload[String(i)] = true;
+                            });
+                            persistQuiz1Answers(payload);
                           }}
                           className={`w-full p-3 rounded-xl text-left flex items-center justify-between transition ${
                             selected
@@ -897,6 +1283,9 @@ export default function PasswordPage() {
               <CardTitle className="text-2xl text-center md:text-left pb-4 md:pb-0 border-b border-muted/20 md:border-b-0">
                 Listening
               </CardTitle>
+              {quiz2Started && !quiz2Submitted && (
+                <div className="text-right text-sm font-semibold text-cyan-300">Time Left: {formatTime(quiz2TimeLeft)}</div>
+              )}
               {quiz2Started && quiz2.length > 0 && (
                 <div className="w-full">
                   <div className="flex items-center justify-between text-xs text-white/70 mb-1">
@@ -924,24 +1313,34 @@ export default function PasswordPage() {
                   <li className="flex gap-2">
                     <span className="font-bold">•</span>
                     <span>
-                      You should listen to the playing audio carefully, then answer the questions using the given choices.
+                      ஒலிக்கும் ஆடியோவை கவனமாகக் கேட்டுவிட்டு, கொடுக்கப்பட்டுள்ள தெரிவுகளைப் பயன்படுத்தி கேள்விகளுக்குப் பதிலளிக்கவும்.
                     </span>
                   </li>
                   <li className="flex gap-2">
                     <span className="font-bold">•</span>
                     <span>
-                      Select the correct choice (A/B/C/D) based on what you heard; if you answer correctly, you will get the letters that are in the password.
+                      கேட்டதன் அடிப்படையில் சரியான தெரிவை (A/B/C/D) தேர்ந்தெடுக்கவும்; நீங்கள் சரியாகப் பதிலளித்தால், கடவுச்சொல்லில் உள்ள எழுத்துகளைப் பெறுவீர்கள்.
                     </span>
                   </li>
                 </ul>
                 <Button 
-                  onClick={() => {
+                  onClick={async () => {
                     if (isCompetitionLocked) return;
                     if (quiz2Submitted) return;
+                    const normalizedSchoolName = schoolName.trim();
                     setQuiz2Started(true);
+                    setQuiz1Started(false);
+                    setQuiz2TimeLeft(300);
                     setCurrentQ2(0);
                     setShowQuestionPanel2(false);
                     setSearchParams({ step: "quiz2", school: schoolName, q: "0", started: "1" });
+
+                    if (normalizedSchoolName) {
+                      await upsertQuizProgress({
+                        school_name: normalizedSchoolName,
+                        quiz2_time_left: 300,
+                      });
+                    }
                   }}
                   disabled={quiz2Submitted || isCompetitionLocked}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-2 rounded-md font-semibold"
@@ -1087,19 +1486,19 @@ export default function PasswordPage() {
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-white flex-shrink-0" />
               <span>
-                You need to find out the password to open this locked document. The password is a meaningful word.
+                பூட்டப்பட்ட இந்த ஆவணத்தைத் திறக்க நீங்கள் கடவுச்சொல்லைக் கண்டுபிடிக்க வேண்டும். கடவுச்சொல் ஒரு அர்த்தமுள்ள வார்த்தையாகும்.
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-white flex-shrink-0" />
               <span>
-                After finishing Photographic Memory and Listening, you will get some letters. Rearrange those letters to form the correct password.
+                புகைப்பட நினைவாற்றல் மற்றும் கேட்டல் சோதனைகளை முடித்த பிறகு, உங்களுக்கு சில எழுத்துக்கள் கிடைக்கும். அந்த எழுத்துக்களை மறுசீரமைத்து சரியான கடவுச்சொல்லை உருவாக்குங்கள்.
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-white flex-shrink-0" />
               <span>
-                Enter the correct password to open the document.
+                ஆவணத்தைத் திறக்க சரியான கடவுச்சொல்லை உள்ளிடவும்.
               </span>
             </li>
           </ul>
@@ -1126,9 +1525,9 @@ export default function PasswordPage() {
                     <span className="font-semibold">Document Locked</span>
                   </div>
                   <p className="text-sm text-white/80">
-                    Enter the 5-letter password to unlock this document.
+                    Enter the 7-letter password to unlock this document.
                   </p>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-7 gap-2">
                     {Array.from({ length: 5 }).map((_, idx) => {
                       const char = documentPasswordInput[idx] || "";
                       return (
@@ -1149,8 +1548,8 @@ export default function PasswordPage() {
                             e.preventDefault();
                             const pasted = normalizePasswordInput(e.clipboardData.getData("text"));
                             if (!pasted) return;
-                            const chars = Array.from({ length: 5 }, (_, i) => documentPasswordInput[i] || "");
-                            for (let i = idx; i < 5 && i - idx < pasted.length; i++) {
+                            const chars = Array.from({ length: 7 }, (_, i) => documentPasswordInput[i] || "");
+                            for (let i = idx; i < 7 && i - idx < pasted.length; i++) {
                               chars[i] = pasted[i - idx];
                             }
                             setDocumentPasswordInput(chars.join(""));
@@ -1169,8 +1568,8 @@ export default function PasswordPage() {
                       disabled={isCompetitionLocked}
                       onClick={() => {
                         const attempt = normalizePasswordInput(documentPasswordInput);
-                        if (attempt.length !== 5) {
-                          setDocumentError("Password must be exactly 5 letters.");
+                        if (attempt.length !== 7) {
+                          setDocumentError("Password must be exactly 7 letters.");
                           return;
                         }
                         if (attempt !== normalizePasswordWord(schoolPasswordWord)) {
@@ -1208,11 +1607,49 @@ export default function PasswordPage() {
   return (
     <div className={`py-8 password-container flex flex-col justify-center ${(quiz1Started || quiz2Started) ? 'min-h-[90vh]' : ''}`}>
       {!showLinks && renderEnter()}
-      {showLinks && !quiz2Started && renderQuiz1()}
-      {/* clue removed */}
-      {showLinks && !quiz1Started && renderQuiz2()}
-      {showLinks && !quiz1Started && !quiz2Started && renderPasswordSolver()}
-      {/* no done card */}
+      {showLinks && (
+        <div className="w-full max-w-2xl mx-auto">
+          {/* Accordion headers */}
+          {!(quiz1Started || quiz2Started) && (
+            <div className="flex flex-col md:flex-row gap-2 mb-4">
+              <button
+              className={`flex-1 px-4 py-2 rounded-b-lg md:rounded-r-lg md:rounded-bl-none font-bold text-base transition border-b-2 md:border-b-0 ${activePanel === 2 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/10 text-white/80 border-transparent'}`}
+              onClick={() => {
+                setActivePanel(2);
+                setSearchParams({ ...Object.fromEntries(searchParams), panel: '2' });
+              }}
+            >
+              Password Solver
+            </button>
+            <button
+              className={`flex-1 px-4 py-2 rounded-t-lg md:rounded-l-lg md:rounded-tr-none font-bold text-base transition border-b-2 md:border-b-0 md:border-r-2 ${activePanel === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/10 text-white/80 border-transparent'}`}
+              onClick={() => {
+                setActivePanel(0);
+                setSearchParams({ ...Object.fromEntries(searchParams), panel: '0' });
+              }}
+            >
+              Photographic Memory
+            </button>
+            <button
+              className={`flex-1 px-4 py-2 font-bold text-base transition border-b-2 md:border-b-0 md:border-r-2 ${activePanel === 1 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/10 text-white/80 border-transparent'}`}
+              onClick={() => {
+                setActivePanel(1);
+                setSearchParams({ ...Object.fromEntries(searchParams), panel: '1' });
+              }}
+            >
+              Listening
+            </button>
+            
+          </div>
+          )}
+          {/* Accordion content */}
+          <div>
+            {activePanel === 0 && renderQuiz1()}
+            {activePanel === 1 && renderQuiz2()}
+            {activePanel === 2 && renderPasswordSolver()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

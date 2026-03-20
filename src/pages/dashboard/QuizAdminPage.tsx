@@ -78,8 +78,8 @@ export default function QuizAdminPage() {
 
   const saveSchoolPassword = async () => {
     const normalized = passwordWord.trim();
-    if (!/^[A-Za-z]{5}$/.test(normalized)) {
-      toast.error("Password must be exactly 5 letters");
+    if (!/^[A-Za-z]{7}$/.test(normalized)) {
+      toast.error("Password must be exactly 7 letters");
       return;
     }
 
@@ -423,7 +423,7 @@ export default function QuizAdminPage() {
       </div>
 
       <div className="pt-6 border-t border-muted space-y-4">
-        <h3 className="text-xl font-semibold">School Passwords (5 letters)</h3>
+        <h3 className="text-xl font-semibold">School Passwords (7 letters)</h3>
         <Card className="p-4 bg-card space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
@@ -439,13 +439,13 @@ export default function QuizAdminPage() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-medium">5-Letter Password</label>
+              <label className="block text-sm font-medium">7-Letter Password</label>
               <Input
                 value={passwordWord}
                 onChange={e => setPasswordWord(e.target.value)}
-                maxLength={5}
+                maxLength={7}
                 className="bg-muted"
-                placeholder="ABCDE"
+                placeholder="ABCDEFG"
               />
             </div>
             <div className="flex items-end">

@@ -158,17 +158,21 @@ export default function CodingPage() {
     return wrapWithDarkStyle(html);
   }, [question, blanks]);
 
-  // Calculate match percentage
-  const computeMatch = (user: string, expected: string): number => {
-    const a = user.trim().toLowerCase();
-    const b = expected.trim().toLowerCase();
-    if (a === b) return 100;
-    let matches = 0;
-    const maxLen = Math.max(a.length, b.length);
-    for (let i = 0; i < Math.min(a.length, b.length); i++) {
-      if (a[i] === b[i]) matches++;
+  // Calculate number of correct blanks and percentage
+  // Returns { correctBlanks, percentage }
+  const computeBlankScore = (userAnswersObj?: Record<string, string>): { correctBlanks: number, percentage: number } => {
+    if (!blanks.length) return { correctBlanks: 0, percentage: 0 };
+    let correct = 0;
+    const userAns = userAnswersObj || blankValues;
+    for (const b of blanks) {
+      const userVal = (userAns[b.blank_id] || '').trim();
+      const correctVal = (b.correct_answer || '').trim();
+      if (userVal === correctVal && correctVal !== "") correct++;
     }
-    return Math.round((matches / maxLen) * 100);
+    return {
+      correctBlanks: correct,
+      percentage: Math.round((correct / blanks.length) * 100)
+    };
   };
 
   const handleContinue = () => {
@@ -181,14 +185,14 @@ export default function CodingPage() {
 
   const handleCheck = async () => {
     const userHTML = buildUserHTML();
-    const expectedHTML = buildExpectedHTML();
-    const pct = computeMatch(userHTML, expectedHTML);
+    const userAnswers = { ...blankValues };
+    const { correctBlanks, percentage: pct } = computeBlankScore(userAnswers);
     const newAttempts = checkAttempts + 1;
     setPercentage(pct);
     setCheckAttempts(newAttempts);
     setChecked(true);
 
-    // Save percentage to DB so admin panel can see it in real-time
+    // Save percentage, correct_blanks, and user answers to DB so admin panel can see it in real-time
     const { data: existing } = await supabase
       .from("coding_submissions")
       .select("id")
@@ -198,14 +202,16 @@ export default function CodingPage() {
     if (existing) {
       await supabase
         .from("coding_submissions")
-        .update({ percentage: pct, check_attempts: newAttempts, final_output: userHTML })
+        .update({ percentage: pct, correct_blanks: correctBlanks, check_attempts: newAttempts, final_output: userHTML, user_answers: userAnswers })
         .eq("id", existing.id);
     } else {
       await supabase.from("coding_submissions").insert({
         school_name: schoolName.trim(),
         percentage: pct,
+        correct_blanks: correctBlanks,
         check_attempts: newAttempts,
         final_output: userHTML,
+        user_answers: userAnswers,
         submitted: false,
         enabled: true,
       });
@@ -216,6 +222,8 @@ export default function CodingPage() {
     setSubmitted(true);
     const userHTML = buildUserHTML();
     const time_remaining = timeLeft;
+    const userAnswers = { ...blankValues };
+    const { correctBlanks, percentage: pct } = computeBlankScore(userAnswers);
 
     const { data: existing } = await supabase
       .from("coding_submissions")
@@ -233,9 +241,11 @@ export default function CodingPage() {
       await supabase
         .from("coding_submissions")
         .update({
-          percentage,
+          percentage: pct,
+          correct_blanks: correctBlanks,
           check_attempts: checkAttempts,
           final_output: userHTML,
+          user_answers: userAnswers,
           submitted: true,
           enabled: false,
           time_remaining,
@@ -244,9 +254,11 @@ export default function CodingPage() {
     } else {
       await supabase.from("coding_submissions").insert({
         school_name: schoolName.trim(),
-        percentage,
+        percentage: pct,
+        correct_blanks: correctBlanks,
         check_attempts: checkAttempts,
         final_output: userHTML,
+        user_answers: userAnswers,
         submitted: true,
         enabled: false,
         time_remaining,
@@ -357,10 +369,10 @@ export default function CodingPage() {
       autoSubmitRef.current = false;
       if (timerRef.current) clearInterval(timerRef.current);
       toast.info("Time's up! Auto-submitting your answers...");
-      // Compute match before submitting so percentage is accurate
+      // Compute blank-based score before submitting so percentage is accurate
       const userHTML = buildUserHTML();
-      const expectedHTML = buildExpectedHTML();
-      const pct = computeMatch(userHTML, expectedHTML);
+      const userAnswers = { ...blankValues };
+      const { correctBlanks, percentage: pct } = computeBlankScore(userAnswers);
       setPercentage(pct);
       setChecked(true);
       // Exit fullscreen if active
@@ -381,8 +393,10 @@ export default function CodingPage() {
             .from("coding_submissions")
             .update({
               percentage: pct,
+              correct_blanks: correctBlanks,
               check_attempts: checkAttempts,
               final_output: userHTML,
+              user_answers: userAnswers,
               submitted: true,
               enabled: false,
             })
@@ -391,8 +405,10 @@ export default function CodingPage() {
           await supabase.from("coding_submissions").insert({
             school_name: schoolName.trim(),
             percentage: pct,
+            correct_blanks: correctBlanks,
             check_attempts: checkAttempts,
             final_output: userHTML,
+            user_answers: userAnswers,
             submitted: true,
             enabled: false,
           });

@@ -1,3 +1,16 @@
+// Helper to count correct blanks (case-sensitive)
+function countCorrectBlanks(userAnswers, blanks) {
+  let correct = 0;
+  for (const b of blanks) {
+    if (
+      b.correct_answer &&
+      (userAnswers?.[b.blank_id] || '').trim() === b.correct_answer.trim()
+    ) {
+      correct++;
+    }
+  }
+  return correct;
+}
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,6 +36,8 @@ interface CodingSub {
   submitted: boolean;
   enabled: boolean;
   time_remaining?: number;
+  user_answers?: Record<string, string>;
+  correct_blanks?: number;
 }
 
 interface BlankRow {
@@ -215,6 +230,7 @@ export default function DashboardCoding() {
               <TableRow>
                 <TableHead>School</TableHead>
                 <TableHead>Match %</TableHead>
+                <TableHead>Correct Blanks</TableHead>
                 <TableHead>Check Attempts</TableHead>
                 <TableHead>Time Remaining</TableHead>
                 <TableHead>Status</TableHead>
@@ -243,6 +259,12 @@ export default function DashboardCoding() {
                         </div>
                         <span className="text-sm">{s.percentage}%</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {/* Show correct blanks for this submission */}
+                      {typeof s.user_answers === 'object' && blanks.length > 0
+                        ? `${countCorrectBlanks(s.user_answers, blanks)} / ${blanks.length}`
+                        : '-'}
                     </TableCell>
                     <TableCell>{s.check_attempts}</TableCell>
                     <TableCell>{timeStr}</TableCell>
@@ -294,7 +316,7 @@ export default function DashboardCoding() {
       </Card>
 
       {/* Scores table — only submitted schools */}
-      {scores.length > 0 && (
+      {subs.length > 0 && (
         <>
           <h2 className="font-display text-xl font-bold">🏆 Coding Scores</h2>
           <Card className="glass-card">
@@ -308,12 +330,12 @@ export default function DashboardCoding() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {scores.map((s) => (
-                    <TableRow key={s.school_name}>
+                  {subs.filter(s => s.submitted && typeof s.correct_blanks === 'number').map((s) => (
+                    <TableRow key={s.id}>
                       <TableCell className="font-medium">{s.school_name}</TableCell>
-                      <TableCell>{s.correct} / {s.total}</TableCell>
+                      <TableCell>{s.correct_blanks} / {blanks.length}</TableCell>
                       <TableCell>
-                        <span className="font-display font-bold text-lg">{s.score}</span>
+                        <span className="font-display font-bold text-lg">{s.percentage}</span>
                       </TableCell>
                     </TableRow>
                   ))}
