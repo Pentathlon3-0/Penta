@@ -358,7 +358,7 @@ export default function PasswordPage() {
       const nextQ = isNaN(qParam) ? 0 : Math.max(0, Math.min(qParam, quiz2.length - 1));
       if (nextQ !== currentQ2) setCurrentQ2(nextQ);
     }
-  }, [location.search, quiz1.length, quiz2.length, schoolName, step, activePanel, quiz1Started, quiz2Started, currentQ1, currentQ2, setSearchParams]);
+  }, [location.search, quiz1.length, quiz2.length, setSearchParams]);
 
   // when step changes we may need to scroll into view
   useEffect(() => {
@@ -1047,6 +1047,7 @@ export default function PasswordPage() {
                     const startTime = 300;
                     setQuiz1Started(true);
                     setQuiz2Started(false);
+                    setActivePanel(0); // ensure we show Quiz1 view when starting
                     setQuiz1TimeLeft(startTime);
                     setCurrentQ1(0);
                     setShowQuestionPanel1(false);
@@ -1330,6 +1331,7 @@ export default function PasswordPage() {
                     const normalizedSchoolName = schoolName.trim();
                     setQuiz2Started(true);
                     setQuiz1Started(false);
+                    setActivePanel(1); // ensure this goes to Listening panel immediately
                     setQuiz2TimeLeft(300);
                     setCurrentQ2(0);
                     setShowQuestionPanel2(false);

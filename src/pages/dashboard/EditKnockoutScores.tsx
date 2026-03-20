@@ -129,7 +129,7 @@ function QualifierRound1Edit({ onClose }: { onClose: () => void }) {
       green = m.circles.length;
     }
     // Calculation: (green*2 + extra*green) + (yellow*1 + extra*yellow) + (red*-1 + extra*red)
-    const total = (green * 2 + yellow * 1 + red * -1) + extra * (green + yellow -red);
+    const total = (green * 2 + yellow * 1 + red * -1) + extra * (green );
     return total;
   };
 
