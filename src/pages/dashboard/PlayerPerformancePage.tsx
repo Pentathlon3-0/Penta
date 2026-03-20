@@ -69,16 +69,22 @@ const PlayerPerformancePage = () => {
         const playerId = String(playerIdRaw || "").trim();
         if (!playerId) return;
 
-        const circles = Array.isArray(performance[teamId]) ? performance[teamId] : [];
-        const correct = circles.length;
+        const perfEntry = performance[teamId];
+        const green = Array.isArray(perfEntry?.green) ? perfEntry.green.length : 0;
+        const yellow = Array.isArray(perfEntry?.yellow) ? perfEntry.yellow.length : 0;
+        const red = Array.isArray(perfEntry?.red) ? perfEntry.red.length : 0;
+
+        const rawScore = (green + yellow - red) * 10;
+        const correctAnswers = green + yellow - red;
+
         const playerMeta = playerById.get(playerId);
         const resolvedTeamId = playerMeta?.team_id || teamId;
 
         const buzzer = buzzerByPlayer[playerId] || { correct: 0, wrong: 0, score: 0 };
         const existing = aggregate.get(playerId);
         if (existing) {
-          existing.correctAnswers += correct + buzzer.correct - buzzer.wrong;
-          existing.score = existing.score + buzzer.score;
+          existing.correctAnswers += correctAnswers + buzzer.correct - buzzer.wrong;
+          existing.score = existing.score + buzzer.score + rawScore;
           return;
         }
 
@@ -86,8 +92,8 @@ const PlayerPerformancePage = () => {
           playerId,
           playerName: playerMeta?.name || "Unknown Player",
           schoolName: teamById.get(resolvedTeamId)?.name || "Unknown School",
-          correctAnswers: correct + buzzer.correct - buzzer.wrong,
-          score: correct * 10 + buzzer.score,
+          correctAnswers: correctAnswers + buzzer.correct - buzzer.wrong,
+          score: rawScore + buzzer.score,
         });
       });
     });

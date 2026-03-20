@@ -13,7 +13,9 @@ const LivescorePage = () => {
   const [schools, setSchools] = useState<SchoolScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [glowIndices, setGlowIndices] = useState<boolean[]>([]);
+  const [rowMoves, setRowMoves] = useState<Record<string, number>>({});
   const [fullSchool, setFullSchool] = useState<SchoolScore | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const prevSchoolsRef = useRef<SchoolScore[]>([]);
 
@@ -73,10 +75,23 @@ const LivescorePage = () => {
 
     result.sort((a, b) => b.score - a.score);
     const prev = prevSchoolsRef.current;
+
+    // Detect score changes for glow and ranking movement for fly effect
+    const prevPositionById = Object.fromEntries(prev.map((s, i) => [s.id, i]));
+    const moves: Record<string, number> = {};
     const newGlows = result.map((s, i) => {
+      const oldPos = prevPositionById[s.id];
+      if (oldPos !== undefined && oldPos !== i) {
+        moves[s.id] = oldPos - i;
+      }
       return prev[i] ? prev[i].score !== s.score : false;
     });
+
     setGlowIndices(newGlows);
+    setRowMoves(moves);
+
+    // Clear movement offsets to animate rows to natural positions
+    setTimeout(() => setRowMoves({}), 100);
     setTimeout(() => setGlowIndices([]), 1200);
 
     setSchools(result);
@@ -86,10 +101,15 @@ const LivescorePage = () => {
 
   return (
     <div className="score-bg">
-      <div className="score-overlay">
+      <div className={`score-overlay ${isFullscreen ? "live-fullscreen" : ""}`}>
         <div className="score-container">
 
-          <h1 className="score-title">Live Scores</h1>
+          <div className="score-header-row">
+            <h1 className="score-title">Live Scores</h1>
+            <button className="fullscreen-button" onClick={() => setIsFullscreen((v) => !v)} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+              {isFullscreen ? "✕" : "⛶"}
+            </button>
+          </div>
 
           {loading ? (
             <p className="loading-text">Loading...</p>
@@ -125,7 +145,15 @@ const LivescorePage = () => {
                     <div className="score-col">SCORE</div>
                   </div>
                   {schools.slice(0, 7).map((school, index) => (
-                    <div key={school.id} className={`timeline-row color-${index + 1}`} onClick={() => setFullSchool(school)}>
+                    <div
+                      key={school.id}
+                      className={`timeline-row color-${index + 1} ${glowIndices[index] ? "row-glow" : ""}`}
+                      style={{
+                        transform: rowMoves[school.id] ? `translateY(${rowMoves[school.id] * 70}px)` : "none",
+                        zIndex: rowMoves[school.id] ? 100 : "auto",
+                      }}
+                      onClick={() => setFullSchool(school)}
+                    >
                       {index === 0 && (
                         <div className="crown-wrapper">
                           <lottie-player
@@ -158,7 +186,7 @@ const LivescorePage = () => {
                         {school.name}
                       </div>
 
-                      <div className={`score-col glow-on-update ${glowIndices[index] ? 'active' : ''}`}>
+                      <div className="score-col">
                         {school.score.toFixed(1)}
                       </div>
                     </div>
