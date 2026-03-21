@@ -417,7 +417,7 @@ const Round2Page = () => {
       green = m.circles.length;
     }
     // Calculation: green*2 + yellow*1 + red*(-1) + extra*count for each color
-    const total = (green * 2 + yellow * 1 + red * -1) + extra * (green);
+    const total = (green * 2 + yellow * 1 + red * -1) + extra * (green+yellow);
     return total;
   };
 
@@ -497,7 +497,7 @@ const Round2Page = () => {
       }
       const extra = m.extra === "" ? 0 : m.extra;
       // New logic: (green*2 + yellow*1 + red*-1) + extra*(green+yellow-red)
-      const total = (green * 2 + yellow * 1 + red * -1 + extra * (green )) * credit;
+      const total = (green * 2 + yellow * 1 + red * -1 + extra * (green+yellow )) * credit;
       return {
         round_id: roundId,
         team_id: team.id,
