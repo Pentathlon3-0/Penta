@@ -101,6 +101,7 @@ export default function PasswordPage() {
 
   const [quiz1Started, setQuiz1Started] = useState(false);
   const [quiz2Started, setQuiz2Started] = useState(false);
+  const [quiz2WarmingUp, setQuiz2WarmingUp] = useState(false);
 
   const [currentQ1, setCurrentQ1] = useState(0);
   const [currentQ2, setCurrentQ2] = useState(0);
@@ -736,7 +737,7 @@ export default function PasswordPage() {
       quiz2TimerRef.current = null;
     }
 
-    const quiz2LettersPool = schoolPasswordWord.slice(3, 5).split("");
+    const quiz2LettersPool = schoolPasswordWord.slice(3, 7).split("");
 
     let correct = 0;
     quiz2.forEach((q, idx) => {
@@ -893,7 +894,7 @@ export default function PasswordPage() {
   // removed clue navigation
 
   const handleSubmitQuiz2 = () => {
-      const quiz2LettersPool = schoolPasswordWord.slice(3, 5).split("");
+      const quiz2LettersPool = schoolPasswordWord.slice(3, 7).split("");
 
     if (quiz2Submitted) return;
     if (!quiz2?.length) return;
@@ -1329,13 +1330,14 @@ export default function PasswordPage() {
                     if (isCompetitionLocked) return;
                     if (quiz2Submitted) return;
                     const normalizedSchoolName = schoolName.trim();
-                    setQuiz2Started(true);
+                    setQuiz2WarmingUp(true);
+                    setQuiz2Started(false);
                     setQuiz1Started(false);
                     setActivePanel(1); // ensure this goes to Listening panel immediately
                     setQuiz2TimeLeft(300);
                     setCurrentQ2(0);
                     setShowQuestionPanel2(false);
-                    setSearchParams({ step: "quiz2", school: schoolName, q: "0", started: "1" });
+                    setSearchParams({ step: "quiz2", school: schoolName, q: "0", started: "0" });
 
                     if (normalizedSchoolName) {
                       await upsertQuizProgress({
@@ -1343,6 +1345,12 @@ export default function PasswordPage() {
                         quiz2_time_left: 300,
                       });
                     }
+
+                    setTimeout(() => {
+                      setQuiz2WarmingUp(false);
+                      setQuiz2Started(true);
+                      setSearchParams({ step: "quiz2", school: schoolName, q: "0", started: "1" });
+                    }, 1300);
                   }}
                   disabled={quiz2Submitted || isCompetitionLocked}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-2 rounded-md font-semibold"
@@ -1359,6 +1367,11 @@ export default function PasswordPage() {
                     </p>
                   </div>
                 )}
+              </div>
+            ) : quiz2WarmingUp ? (
+              <div className="border border-blue-300/80 bg-blue-950/30 rounded-xl p-8 text-center animate-pulse">
+                <p className="text-lg font-bold text-cyan-200 mb-2">Preparing Listening Questions...</p>
+                <p className="text-sm text-white/80">Please wait a moment while questions load.</p>
               </div>
             ) : (
               <>
