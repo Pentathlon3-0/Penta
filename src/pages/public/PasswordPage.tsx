@@ -287,11 +287,11 @@ export default function PasswordPage() {
 
   const setDocumentPasswordChar = (idx: number, value: string) => {
     const char = value.replace(/[^a-zA-Z]/g, "").slice(0, 1);
-    const chars = Array.from({ length: 5 }, (_, i) => documentPasswordInput[i] || "");
+    const chars = Array.from({ length: 7 }, (_, i) => documentPasswordInput[i] || "");
     chars[idx] = char;
     setDocumentPasswordInput(chars.join(""));
     if (documentError) setDocumentError("");
-    if (char && idx < 4) {
+    if (char && idx < 6) {
       documentInputRefs.current[idx + 1]?.focus();
       documentInputRefs.current[idx + 1]?.select();
     }
@@ -782,7 +782,7 @@ export default function PasswordPage() {
     setQuiz2TimeLeft(0);
   };
 
-  const handleSubmitQuiz1 = () => {
+  const handleSubmitQuiz1 = async () => {
     if (quiz1Submitted) return;
     if (!quiz1?.length) return;
 
@@ -868,7 +868,8 @@ export default function PasswordPage() {
     answers1.forEach((val, idx) => {
       if (val) quiz1Answers[String(idx)] = val;
     });
-    upsertQuizProgress({
+    await persistQuiz1Answers(quiz1Answers);
+    await upsertQuizProgress({
       school_name: schoolName,
       quiz1_answers: quiz1Answers,
       quiz1_score: Math.round((30 / Math.max(1, quiz1.length)) * correct),
@@ -1543,7 +1544,7 @@ export default function PasswordPage() {
                     Enter the 7-letter password to unlock this document.
                   </p>
                   <div className="grid grid-cols-7 gap-2">
-                    {Array.from({ length: 5 }).map((_, idx) => {
+                    {Array.from({ length: 7 }).map((_, idx) => {
                       const char = documentPasswordInput[idx] || "";
                       return (
                         <Input
